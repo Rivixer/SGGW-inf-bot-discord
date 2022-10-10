@@ -16,8 +16,8 @@ class StatusCog(commands.Cog):
         try:
             with open('status.txt', encoding='utf-8') as f:
                 status = f.read()
-        except Exception:
-            return
+        except Exception as e:
+            print(f'Status error: {e}')
 
         await self.__bot.change_presence(
             activity=Activity(
