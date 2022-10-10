@@ -24,7 +24,7 @@ class TestCog(commands.Cog):
     @has_admin_role()
     @is_bot_channel()
     @commands.command(name='reload_settings')
-    async def _print(self, ctx: commands.Context, *_) -> None:
+    async def _reload_settings(self, ctx: commands.Context, *_) -> None:
         await ctx.message.delete()
 
         try:
@@ -37,9 +37,8 @@ class TestCog(commands.Cog):
     @has_admin_role()
     @is_bot_channel()
     @commands.group(name='cogs')
-    async def _cogs(self, *args) -> None:
-        ctx: commands.Context = args[0]
-        await ctx.message.delete()
+    async def _cogs(self, *_) -> None:
+        pass
 
     async def __load_cog(self, ctx: commands.Context, cog_path: str) -> None:
         try:
@@ -47,14 +46,11 @@ class TestCog(commands.Cog):
         except Exception as e:
             return await ctx.send(
                 f'Cog \'{cog_path}\' cannot be loaded.\n'
-                f'Reason: {e}',
-                delete_after=5
+                f'Reason: {e}'
             )
 
-        await ctx.send(f'Pomyślnie przeładowano/załadowano {cog_path}', delete_after=5)
-        print(
-            f'{ctx.author.display_name} podłączył {cog_path}'
-        )
+        await ctx.send(f'Pomyślnie przeładowano/załadowano {cog_path}')
+        print(f'{ctx.author.display_name} podłączył {cog_path}')
 
     @_cogs.command(name='load')
     async def _load(self, ctx: commands.Context, name: str | None = None, *_) -> None:
@@ -64,7 +60,7 @@ class TestCog(commands.Cog):
     @_cogs.command(name='reload')
     async def _reload(self, ctx: commands.Context, name: str | None = None, *_) -> None:
         if name is None:
-            return await ctx.send('Gimme cog name!', delete_after=5)
+            return await ctx.send('Gimme cog name!')
 
         cog_path = f'cogs.{name.lower()}_cog'
 
@@ -81,8 +77,7 @@ class TestCog(commands.Cog):
                 ('\n'.join(
                     path for path in os.listdir(
                         'cogs/') if path.endswith('_cog.py')
-                )),
-                delete_after=15
+                ))
             )
 
         await self.__load_cog(ctx, cog_path)
