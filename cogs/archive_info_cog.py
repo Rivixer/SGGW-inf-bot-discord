@@ -91,7 +91,7 @@ class ArchiveInfoCog(commands.Cog):
         except (nextcord.NotFound, nextcord.HTTPException):
             return await ctx.send(
                 f'{ctx.author.mention} Nie znaleziono wiadmomości do zaktualizowania. '
-                f'Zaktualizuj settings.json lub użyj komendy \'{BOT_PREFIX}info send\'.',
+                f'Zaktualizuj settings.json lub użyj komendy \'{BOT_PREFIX}archive send\'.',
                 delete_after=10
             )
 
