@@ -1,9 +1,18 @@
-from discord import RawReactionActionEvent
+import asyncio
+from tokenize import group
+from typing import Generator
+
+import nextcord
 from nextcord.colour import Colour
 from nextcord.ext import commands
 from nextcord.embeds import Embed
+from nextcord.raw_models import RawReactionActionEvent
 
 from utils.checks import has_admin_role
+from utils.settings import update_settings, settings
+
+
+_MSG_ID_JSON_NAME = 'ROLES_MSG_ID'
 
 
 class AssignRolesCog(commands.Cog):
@@ -24,7 +33,22 @@ class AssignRolesCog(commands.Cog):
         self.__bot = bot
         self.__group_emojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣']
         self.__guest_emoji = '*️⃣'
-        self.__embed_title = 'Wybierz odpowiednią grupę!'
+        self.__embed_title = 'Przydziel się do swojej grupy labolatoryjnej!'
+
+    async def __remove_old_role(self, member: nextcord.Member, *roles: nextcord.Role) -> None:
+        for role in roles:
+            for member_role in member.roles:
+                if role == member_role:
+                    await member.remove_roles(role)
+                    print(
+                        f'Usunięto {member.display_name} rangę {role.name}'
+                    )
+
+    async def __assign_new_role(self, member: nextcord.Member, role: nextcord.Role) -> None:
+        await member.add_roles(role)
+        print(
+            f'{member.display_name}: dodano rangę {role.name}'
+        )
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: RawReactionActionEvent) -> None:
@@ -40,6 +64,14 @@ class AssignRolesCog(commands.Cog):
         if len(message.embeds) == 0 or message.embeds[0].title != self.__embed_title:
             return
 
+        reaction = nextcord.utils.get(
+            message.reactions,
+            emoji=payload.emoji.name
+        )
+
+        if reaction is None or self.__bot.user not in await reaction.users().flatten():
+            return await message.remove_reaction(reaction or payload.emoji, payload.member)
+
         from utils.checks import settings
         emoji = str(payload.emoji)
 
@@ -48,70 +80,127 @@ class AssignRolesCog(commands.Cog):
             settings.get(f'GR_{i+1}_ID')) for i in range(5)
         ]
 
-        roles = [*group_roles, guest_role]
-        for role in roles:
-            for member_role in payload.member.roles:
-                if role == member_role:
-                    await payload.member.remove_roles(role)
-                    print(
-                        f'Usunięto {payload.member.display_name} rangę {role.name}'
-                    )
+        all_roles = [*group_roles, guest_role]
+
+        await self.__remove_old_role(payload.member, *all_roles)
 
         if emoji in self.__group_emojis:
-            role_to_add = group_roles[self.__group_emojis.index(emoji)]
-            await payload.member.add_roles(role_to_add)
-            print(
-                f'Dodano {payload.member.display_name} rangę {role_to_add.name}'
-            )
+            role_to_assign = group_roles[self.__group_emojis.index(emoji)]
         elif emoji == self.__guest_emoji:
-            await payload.member.add_roles(guest_role)
-            print(
-                f'Dodano {payload.member.display_name} rangę {guest_role.name}'
-            )
+            role_to_assign = guest_role
 
-        await message.remove_reaction(emoji, payload.member)
+        await asyncio.gather(
+            self.__assign_new_role(payload.member, role_to_assign),
+            message.remove_reaction(emoji, payload.member)
+        )
 
-    @has_admin_role()
-    @commands.command(name='roles_table')
-    async def _roles_table(self, ctx: commands.Context, no_of_groups: str = '5', *_) -> None:
-        await ctx.message.delete()
-
-        try:
-            max_group = int(no_of_groups)
-        except ValueError as e:
-            return await ctx.send(
-                f'Błędna wartość \'no_of_groups\' ({e})',
-                delete_after=7
-            )
-
-        if not (0 < max_group <= 5):
-            return await ctx.send(
-                f'Błędna wartość \'no_of_groups\' (musi być z przedziału od 0 do 5)',
-                delete_after=7
-            )
-
-        values = list()
-        emojis = list()
-        for i, group_emoji in enumerate(self.__group_emojis):
+    def __generate_emojis(self, max_group: int) -> Generator[str, None, None]:
+        for i, emoji in enumerate(self.__group_emojis):
             if i == max_group:
                 break
+            yield emoji
+
+    def __generate_embed(self, max_group: int) -> Embed:
+        values = list()
+        emojis = list()
+        for i, group_emoji in enumerate(self.__generate_emojis(max_group)):
             values.append(f'{group_emoji} - grupa nr {i+1}')
             emojis.append(group_emoji)
         values.append(f'{self.__guest_emoji} - gość')
         emojis.append(self.__guest_emoji)
 
-        embed = Embed(
+        return Embed(
             title=self.__embed_title,
-            description='Wystarczy, że klikniesz odpowiednią reakcję pod spodem.',
+            description='Możesz należeć tylko do 1 grupy.',
             colour=Colour.yellow()
         ).add_field(
-            name='Opis reakcji:',
+            name='Kliknij pod spodem odpowiednią reakcję:',
             value='\n'.join(values)
+        ).set_footer(
+            text='Nie spam! Twoja reakcja zostanie cofnięta po zmianie grupy.'
         )
 
-        message = await ctx.send(embed=embed)
+    def __validate_max_groups_input(self, max_group_input: str | None) -> str | None:
+        """Return reason if validate failed."""
 
-        for emoji in emojis:
+        if max_group_input is None:
+            return 'Podaj dodatkowy argument \'max_group\' (od 1 do 5)'
+
+        try:
+            no_of_groups = int(max_group_input)
+        except ValueError as e:
+            return f'Błędna wartość \'max_group\' ({e})'
+
+        if not (0 < no_of_groups <= 5):
+            return f'Błędna wartość \'max_group\' (musi być z przedziału od 1 do 5)'
+
+    @ has_admin_role()
+    @ commands.group(name='roles')
+    async def _roles(self, *args) -> None:
+        ctx: commands.Context = args[0]
+        await ctx.message.delete()
+
+    @ _roles.command(name='send')
+    async def _send(
+        self,
+        ctx: commands.Context,
+        max_group: str | None = None,
+        * _
+    ) -> None:
+        if reason := self.__validate_max_groups_input(max_group):
+            return await ctx.send(
+                f'{ctx.author.mention} {reason}',
+                delete_after=7
+            )
+
+        max_group = int(max_group)
+        embed = self.__generate_embed(max_group)
+        message = await ctx.send(embed=embed)
+        update_settings(_MSG_ID_JSON_NAME, message.id)
+
+        all_emojis = [
+            *list(self.__generate_emojis(max_group)),
+            self.__guest_emoji
+        ]
+
+        for emoji in all_emojis:
+            await message.add_reaction(emoji)
+
+    @ _roles.command(name='update')
+    async def _update(
+        self,
+        ctx: commands.Context,
+        max_group: str | None = None,
+        * _
+    ) -> None:
+        if reason := self.__validate_max_groups_input(max_group):
+            return await ctx.send(
+                f'{ctx.author.mention} {reason}',
+                delete_after=7
+            )
+
+        max_group = int(max_group)
+        message_id = settings.get(_MSG_ID_JSON_NAME)
+
+        try:
+            message = await ctx.channel.fetch_message(message_id)
+        except nextcord.NotFound:
+            return await ctx.send(
+                'Nie znaleziono wiadmomości do zaktualizowania. '
+                'Zaktualizuj settings.json lub użyj komendy \'roles send\'.',
+                delete_after=10
+            )
+
+        embed = self.__generate_embed(max_group)
+        await message.edit(embed=embed)
+        await message.clear_reactions()
+
+        all_emojis = [
+            *list(self.__generate_emojis(max_group)),
+            self.__guest_emoji
+        ]
+
+        for emoji in all_emojis:
             await message.add_reaction(emoji)
 
 

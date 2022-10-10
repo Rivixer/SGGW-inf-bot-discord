@@ -23,6 +23,7 @@ class JsonsCog(commands.Cog):
 
         files = [
             nextcord.File('files/info.json'),
+            nextcord.File('files/info2.json'),
             nextcord.File('files/council.json'),
             nextcord.File('files/links.json'),
             nextcord.File('files/archive_links.json'),

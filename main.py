@@ -1,9 +1,11 @@
-from distutils.command.install_egg_info import install_egg_info
 import os
 
 import dotenv
 from nextcord import Intents
 from nextcord.ext import commands
+
+BOT_PREFIX = '%%%'
+
 
 if __name__ == '__main__':
     intents = Intents.all()
@@ -14,7 +16,7 @@ if __name__ == '__main__':
     dotenv.load_dotenv()
 
     bot = commands.Bot(
-        command_prefix='%%%',
+        command_prefix=BOT_PREFIX,
         intents=intents
     )
 

@@ -5,10 +5,15 @@ import json
 from nextcord.colour import Colour
 from nextcord.ext import commands
 from nextcord.embeds import Embed
+import nextcord
 
+from utils.settings import update_settings, settings
 from utils.checks import has_admin_role
+from main import BOT_PREFIX
 
 T = TypeVar('T', bound=dict[str, dict[str, str | dict[str, str]]])
+
+_MSG_ID_JSON_NAME = 'ARCHIVE_INFO_MSG_ID'
 
 
 class ArchiveInfoCog(commands.Cog):
@@ -18,7 +23,7 @@ class ArchiveInfoCog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.__bot = bot
 
-    def generate_embeds(self) -> list[Embed]:
+    def __generate_embeds(self) -> list[Embed]:
         try:
             with open('files/archive_links.json', encoding='utf-8') as f:
                 data: T = json.load(f)
@@ -65,13 +70,33 @@ class ArchiveInfoCog(commands.Cog):
 
         return embeds
 
-    @ has_admin_role()
-    @ commands.command(name='send_archive_info')
-    async def _send_archive_info(self, ctx: commands.Context, *_) -> None:
+    @commands.group(name='archive')
+    @has_admin_role()
+    async def _archive(self, *args) -> None:
+        ctx: commands.Context = args[0]
         await ctx.message.delete()
 
-        embeds = self.generate_embeds()
-        await ctx.send(embeds=embeds)
+    @_archive.command(name='send')
+    async def _send(self, ctx: commands.Context, *_) -> None:
+        embeds = self.__generate_embeds()
+        message = await ctx.send(embeds=embeds)
+        update_settings(_MSG_ID_JSON_NAME, message.id)
+
+    @_archive.command(name='update')
+    async def _update(self, ctx: commands.Context, *_) -> None:
+        message_id = settings.get(_MSG_ID_JSON_NAME)
+
+        try:
+            message = await ctx.channel.fetch_message(message_id)
+        except (nextcord.NotFound, nextcord.HTTPException):
+            return await ctx.send(
+                f'{ctx.author.mention} Nie znaleziono wiadmomości do zaktualizowania. '
+                f'Zaktualizuj settings.json lub użyj komendy \'{BOT_PREFIX}info send\'.',
+                delete_after=10
+            )
+
+        embeds = self.__generate_embeds()
+        await message.edit(embeds=embeds)
 
 
 def setup(bot: commands.Bot):
