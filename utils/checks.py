@@ -1,15 +1,6 @@
-from typing import Any
-import json
-
 from nextcord.ext import commands
 
-
-try:
-    with open('settings.json') as f:
-        settings: dict[str, Any] = json.load(f)
-except Exception as e:
-    settings = dict()
-    print(e)
+from utils.settings import settings
 
 
 def has_admin_role():
