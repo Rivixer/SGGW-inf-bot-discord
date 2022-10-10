@@ -25,4 +25,5 @@ if __name__ == '__main__':
     bot.load_extension('cogs.jsons_cog')
     bot.load_extension('cogs.assign_roles_cog')
     bot.load_extension('cogs.test_cog')
+    bot.load_extension('cogs.status_cog')
     bot.run(os.environ.get('BOT_TOKEN'))
