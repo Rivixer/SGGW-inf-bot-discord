@@ -44,14 +44,14 @@ class AssignRolesCog(commands.Cog):
                 if role == member_role:
                     await member.remove_roles(role)
                     Console.specific(
-                        f'{member.display_name}: usunięto rangę {role.name}'
+                        f'{member.display_name}: usunięto rangę {role.name}',
                         'Role', FontColour.PINK
                     )
 
     async def __assign_new_role(self, member: nextcord.Member, role: nextcord.Role) -> None:
         await member.add_roles(role)
         Console.specific(
-            f'{member.display_name}: dodano rangę {role.name}'
+            f'{member.display_name}: dodano rangę {role.name}',
             'Role', FontColour.PINK
         )
 
