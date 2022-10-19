@@ -6,15 +6,18 @@ from nextcord.colour import Colour
 from nextcord.ext import commands
 from nextcord.embeds import Embed
 import nextcord
+from utils.console import Console
+from utils.message import MainMessageUtils
 
 from utils.settings import update_settings, settings
-from utils.checks import has_admin_role
+from utils.checks import has_admin_role, is_bot_channel
 from main import BOT_PREFIX
+from utils.update_embed import UpdateEmbed
 
 
 _T = TypeVar('_T', bound=dict[str, dict[str, str]])
 
-_MSG_ID_JSON_NAME = 'INFO_MSG_ID'
+_MSG_JSON_NAME = 'INFO_MSG'
 
 
 class InformationsCog(commands.Cog):
@@ -26,12 +29,16 @@ class InformationsCog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.__bot = bot
 
-    def __add_council_field(self, embed: Embed) -> None:
+    def __add_council_field(self, embed: Embed, *, preview: bool = False) -> None:
+        file_path = f'files{"/preview" if preview else ""}/council.json'
+
         try:
-            with open('files/council.json', encoding='utf-8') as f:
+            with open(file_path, encoding='utf-8') as f:
                 council: _T = json.load(f)
         except OSError as e:
-            return print(e)
+            return Console.important_error(
+                f'Nie udało się wczytać pliku {file_path}', e
+            )
 
         users: list[str] = list()
 
@@ -51,12 +58,14 @@ class InformationsCog(commands.Cog):
             inline=False
         )
 
-    def __add_info_field(self, embed: Embed, second: bool = False) -> None:
+    def __add_info_fields(self, embed: Embed, path: str) -> None:
         try:
-            with open(f'files/info{"2" if second else ""}.json', encoding='utf-8') as f:
+            with open(path, encoding='utf-8') as f:
                 info: _T = json.load(f)
         except OSError as e:
-            return print(e)
+            return Console.important_error(
+                f'Nie udało się wczytać pliku {path}', e
+            )
 
         for info_name, info_data in info.items():
             embed.add_field(
@@ -65,12 +74,16 @@ class InformationsCog(commands.Cog):
                 inline=False
             )
 
-    def __add_link_fields(self, embed: Embed) -> None:
+    def __add_link_fields(self, embed: Embed, *, preview: bool = False) -> None:
+        file_path = f'files{"/preview" if preview else ""}/links.json'
+
         try:
-            with open('files/links.json', encoding='utf-8') as f:
+            with open(file_path, encoding='utf-8') as f:
                 council: _T = json.load(f)
         except OSError as e:
-            return print(e)
+            return Console.important_error(
+                f'Nie udało się wczytać pliku {file_path}', e
+            )
 
         for category_name, category_data in council.items():
 
@@ -84,20 +97,27 @@ class InformationsCog(commands.Cog):
                 inline=False
             )
 
-    def __generate_embed(self, ctx: commands.Context) -> Embed:
+    def generate_embed(self, ctx: commands.Context, preview: bool = False) -> Embed:
         embed = Embed(
             title='Informacje',
             description=f'Aktualizacja: {datetime.now().strftime("%d.%m.%Y %H:%M")}',
             colour=Colour.red()
         )
 
+        if preview:
+            embed.set_author(name='PREVIEW')
+
         if guild_icon := ctx.guild.icon:
             embed.set_thumbnail(url=guild_icon.url)
 
-        self.__add_council_field(embed)
-        self.__add_info_field(embed)
+        self.__add_council_field(embed, preview=preview)
+        self.__add_info_fields(
+            embed, f'files{"/preview" if preview else ""}/info.json'
+        )
         self.__add_link_fields(embed)
-        self.__add_info_field(embed, True)
+        self.__add_info_fields(
+            embed, f'files{"/preview" if preview else ""}/info2.json'
+        )
 
         embed.set_footer(
             text='Zalecane jest ustawienie pseudonimu z imieniem i 1. literą nazwiska.'
@@ -105,33 +125,87 @@ class InformationsCog(commands.Cog):
 
         return embed
 
-    @commands.group(name='info')
+    @commands.group(name='info', brief='Send info embed')
     @has_admin_role()
-    async def _info(self, *args) -> None:
-        ctx: commands.Context = args[0]
+    async def _info(self, *_) -> None:
+        pass
+
+    @_info.command(
+        name='send',
+        brief='Send new main message',
+        description='''The command message will be deleted.
+        The sent message will be the main message now.
+        The channel where the message was sent
+        will be now the main channel of this message.
+        If old main message exists, delete it.'''
+    )
+    async def _send(self, ctx: commands.Context, *_) -> None:
         await ctx.message.delete()
 
-    @_info.command(name='send')
-    async def _send(self, ctx: commands.Context, *_) -> None:
-        embed = self.__generate_embed(ctx)
-        message = await ctx.send(embed=embed)
-        update_settings(_MSG_ID_JSON_NAME, message.id)
+        try:
+            _, old_message = await MainMessageUtils.fetch_channel_n_msg(
+                ctx, _MSG_JSON_NAME
+            )
+        except:
+            ...
+        else:
+            await old_message.delete()
 
-    @_info.command(name='update')
+        embed = self.generate_embed(ctx)
+        message = await ctx.send(embed=embed)
+        update_settings(
+            _MSG_JSON_NAME, {
+                "MSG_ID": message.id,
+                "CHANNEL_ID": ctx.channel.id
+            }
+        )
+
+    @_info.command(
+        name='update',
+        brief='Update current main message',
+        description='''You can use this on any channel,
+        but only on the main channel the message will be deleted.
+        If main message not exists, send info about it.
+        '''
+    )
     async def _update(self, ctx: commands.Context, *_) -> None:
-        message_id = settings.get(_MSG_ID_JSON_NAME)
+        msg_settings: dict = settings.get(_MSG_JSON_NAME)
+        channel_id = msg_settings.get('CHANNEL_ID')
+
+        if channel_id == ctx.channel.id:
+            await ctx.message.delete()
 
         try:
-            message = await ctx.channel.fetch_message(message_id)
-        except (nextcord.NotFound, nextcord.HTTPException):
+            channel, message = await MainMessageUtils.fetch_channel_n_msg(
+                ctx, _MSG_JSON_NAME
+            )
+        except (nextcord.NotFound, nextcord.HTTPException, commands.errors.CommandInvokeError):
             return await ctx.send(
                 f'{ctx.author.mention} Nie znaleziono wiadmomości do zaktualizowania. '
                 f'Zaktualizuj settings.json lub użyj komendy \'{BOT_PREFIX}info send\'.',
-                delete_after=10
+                delete_after=(10 if channel_id == ctx.channel.id else None)
             )
 
-        embed = self.__generate_embed(ctx)
+        UpdateEmbed.override_file('info')
+        UpdateEmbed.override_file('info2')
+
+        embed = self.generate_embed(ctx)
         await message.edit(embed=embed)
+
+        if channel.id != ctx.channel.id:
+            await ctx.send(
+                f'{ctx.author.mention} Zaktualizowano info na {channel.mention}'
+            )
+
+    @is_bot_channel()
+    @_info.command(
+        name='preview',
+        brief='Show preview of archive info embeds',
+        description='Only on the bot-channel.'
+    )
+    async def _preview(self, ctx: commands.Context, *_) -> None:
+        embed = self.generate_embed(ctx, preview=True)
+        await ctx.send(embed=embed)
 
 
 def setup(bot: commands.Bot):

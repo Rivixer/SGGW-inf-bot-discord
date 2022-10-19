@@ -6,6 +6,7 @@ from nextcord.ext import commands
 import nextcord
 
 from utils.checks import has_admin_role, is_bot_channel
+from utils.console import Console, FontColour
 
 
 class JsonsCog(commands.Cog):
@@ -17,10 +18,12 @@ class JsonsCog(commands.Cog):
 
     @has_admin_role()
     @is_bot_channel()
-    @commands.command(name='jsons')
+    @commands.command(
+        name='jsons',
+        brief='Send all jsons',
+        description='Only on the bot-channel.'
+    )
     async def _jsons(self, ctx: commands.Context, *_) -> None:
-        await ctx.message.delete()
-
         files = [
             nextcord.File('files/info.json'),
             nextcord.File('files/info2.json'),
@@ -31,10 +34,8 @@ class JsonsCog(commands.Cog):
 
         await ctx.send(
             f'{ctx.author.mention} '
-            'Tu są wszystkie jsony. '
-            'Ta wiadomość zniknie za 60 sek.',
+            'Tu są wszystkie jsony.',
             files=files,
-            delete_after=60
         )
 
     @staticmethod
@@ -42,25 +43,34 @@ class JsonsCog(commands.Cog):
         # Move existing file to old_files
         file_extension = file.filename.split('.')[-1]
         file_name = '.'.join(file.filename.split('.')[:-1])
+
+        if not os.path.exists('old_files/preview'):
+            os.mkdir('old_files/preview')
+
         os.replace(
-            f'files/{file.filename}',
-            f'old_files/{file_name}-{datetime.now().strftime("%d-%m-%y_%H-%M-%S-%f")}.{file_extension}'.replace(' ', '_'),
+            f'files/preview/{file.filename}',
+            f'old_files/preview/{file_name}-{datetime.now().strftime("%d-%m-%y_%H-%M-%S-%f")}.{file_extension}'.replace(' ', '_'),
         )
 
         # Save new file
-        await file.save(f'files/{file.filename}')
+        await file.save(f'files/preview/{file.filename}')
 
     @has_admin_role()
     @is_bot_channel()
-    @commands.command(name='update_json')
+    @commands.command(
+        name='update_json',
+        brief='Update json',
+        description='''Only on the bot-channel.
+        Attach json file(s) in command message.
+        If file(s) with the same name exist(s), move it/them to `old_files/`
+        and save new file(s) to location of this/these file(s)
+        Otherwise, send a message with json names that do not match.'''
+    )
     async def _update_json(self, ctx: commands.Context, *_) -> None:
-        await ctx.message.delete()
-
         if len(ctx.message.attachments) == 0:
             return await ctx.send(
                 f'{ctx.author.mention} '
-                'Nie załączyłeś żadnego pliku!',
-                delete_after=10
+                'Nie załączyłeś żadnego pliku!'
             )
 
         json_names = list()
@@ -90,14 +100,15 @@ class JsonsCog(commands.Cog):
         await ctx.send(
             f'{ctx.author.mention}\n'
             f'{updated_info}\n'
-            f'{wrong_names_info}',
-            delete_after=10
+            f'{wrong_names_info}'
         )
 
-        print(
+        Console.specific(
             f'User {ctx.author.display_name} użył %update_json.\n'
             f'{updated_info}\n'
-            f'{wrong_names_info}'
+            f'{wrong_names_info}',
+            'UpdateJSON',
+            FontColour.PINK
         )
 
 

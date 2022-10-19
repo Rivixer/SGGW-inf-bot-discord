@@ -1,10 +1,14 @@
+from pathlib import Path
+import sys
 import os
 
-import dotenv
-from nextcord import Intents
 from nextcord.ext import commands
+from nextcord import Intents
+import dotenv
 
-BOT_PREFIX = '%%%'
+from utils.console import Console
+
+BOT_PREFIX = '%'
 
 
 if __name__ == '__main__':
@@ -20,10 +24,23 @@ if __name__ == '__main__':
         intents=intents
     )
 
-    bot.load_extension('cogs.informations_cog')
-    bot.load_extension('cogs.archive_info_cog')
-    bot.load_extension('cogs.jsons_cog')
-    bot.load_extension('cogs.assign_roles_cog')
-    bot.load_extension('cogs.test_cog')
-    bot.load_extension('cogs.status_cog')
+    for path in Path('.').rglob('*_cog.py'):
+        if str(path).startswith('.venv'):
+            continue
+
+        cog_name = str(path)[:-7]
+
+        try:
+            bot.load_extension(
+                str(path)[:-3].replace(
+                    '\\' if sys.platform != 'linux' else '/', '.'
+                )
+            )
+            Console.cogs(f'Cog \'{cog_name}\' został załadowany!')
+        except commands.ExtensionError as e:
+            Console.error(
+                f'ERROR! Cog \'{cog_name}\' nie został załadowany!',
+                exception=e
+            )
+
     bot.run(os.environ.get('BOT_TOKEN'))

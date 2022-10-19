@@ -1,18 +1,21 @@
-import asyncio
-from tokenize import group
 from typing import Generator
+import asyncio
 
-import nextcord
+
+from nextcord.raw_models import RawReactionActionEvent
+from nextcord.message import Message
 from nextcord.colour import Colour
 from nextcord.ext import commands
 from nextcord.embeds import Embed
-from nextcord.raw_models import RawReactionActionEvent
+import nextcord
 
-from utils.checks import has_admin_role
+from utils.checks import has_admin_role, is_bot_channel
+from utils.message import MainMessageUtils
 from utils.settings import update_settings, settings
+from utils.console import Console, FontColour
 
 
-_MSG_ID_JSON_NAME = 'ROLES_MSG_ID'
+_MSG_JSON_NAME = 'ROLES_MSG'
 
 
 class AssignRolesCog(commands.Cog):
@@ -35,19 +38,21 @@ class AssignRolesCog(commands.Cog):
         self.__guest_emoji = '*️⃣'
         self.__embed_title = 'Przydziel się do swojej grupy labolatoryjnej!'
 
-    async def __remove_old_role(self, member: nextcord.Member, *roles: nextcord.Role) -> None:
+    async def __remove_old_roles(self, member: nextcord.Member, *roles: nextcord.Role) -> None:
         for role in roles:
             for member_role in member.roles:
                 if role == member_role:
                     await member.remove_roles(role)
-                    print(
-                        f'Usunięto {member.display_name} rangę {role.name}'
+                    Console.specific(
+                        f'{member.display_name}: usunięto rangę {role.name}'
+                        'Role', FontColour.PINK
                     )
 
     async def __assign_new_role(self, member: nextcord.Member, role: nextcord.Role) -> None:
         await member.add_roles(role)
-        print(
+        Console.specific(
             f'{member.display_name}: dodano rangę {role.name}'
+            'Role', FontColour.PINK
         )
 
     @commands.Cog.listener()
@@ -82,7 +87,7 @@ class AssignRolesCog(commands.Cog):
 
         all_roles = [*group_roles, guest_role]
 
-        await self.__remove_old_role(payload.member, *all_roles)
+        await self.__remove_old_roles(payload.member, *all_roles)
 
         if emoji in self.__group_emojis:
             role_to_assign = group_roles[self.__group_emojis.index(emoji)]
@@ -100,7 +105,10 @@ class AssignRolesCog(commands.Cog):
                 break
             yield emoji
 
-    def __generate_embed(self, max_group: int) -> Embed:
+    def generate_embed(self, max_group: int | None = None, *, preview: bool = False) -> Embed:
+        if max_group is None:
+            max_group = len(self.__group_emojis)
+
         values = list()
         emojis = list()
         for i, group_emoji in enumerate(self.__generate_emojis(max_group)):
@@ -109,7 +117,7 @@ class AssignRolesCog(commands.Cog):
         values.append(f'{self.__guest_emoji} - gość')
         emojis.append(self.__guest_emoji)
 
-        return Embed(
+        embed = Embed(
             title=self.__embed_title,
             description='Możesz należeć tylko do 1 grupy.',
             colour=Colour.yellow()
@@ -119,6 +127,11 @@ class AssignRolesCog(commands.Cog):
         ).set_footer(
             text='Nie spam! Twoja reakcja zostanie cofnięta po zmianie grupy.'
         )
+
+        if preview:
+            embed.set_author(name='PREVIEW')
+
+        return embed
 
     def __validate_max_groups_input(self, max_group_input: str | None) -> str | None:
         """Return reason if validate failed."""
@@ -134,19 +147,38 @@ class AssignRolesCog(commands.Cog):
         if not (0 < no_of_groups <= 5):
             return f'Błędna wartość \'max_group\' (musi być z przedziału od 1 do 5)'
 
-    @ has_admin_role()
-    @ commands.group(name='roles')
-    async def _roles(self, *args) -> None:
-        ctx: commands.Context = args[0]
-        await ctx.message.delete()
+    @has_admin_role()
+    @commands.group(name='roles', brief='Embed with function to choose lab group')
+    async def _roles(self, *_) -> None:
+        pass
 
-    @ _roles.command(name='send')
+    @_roles.command(
+        name='send',
+        brief='Send new main message',
+        description='''The command message will be deleted.
+        The sent message will be the main message now.
+        The channel where the message was sent
+        will be now the main channel of this message.
+        If old main message exists, delete it.'''
+    )
     async def _send(
         self,
         ctx: commands.Context,
         max_group: str | None = None,
         * _
     ) -> None:
+
+        await ctx.message.delete()
+
+        try:
+            _, old_message = await MainMessageUtils.fetch_channel_n_msg(
+                ctx, _MSG_JSON_NAME
+            )
+        except:
+            ...
+        else:
+            await old_message.delete()
+
         if reason := self.__validate_max_groups_input(max_group):
             return await ctx.send(
                 f'{ctx.author.mention} {reason}',
@@ -154,9 +186,15 @@ class AssignRolesCog(commands.Cog):
             )
 
         max_group = int(max_group)
-        embed = self.__generate_embed(max_group)
+        embed = self.generate_embed(max_group)
         message = await ctx.send(embed=embed)
-        update_settings(_MSG_ID_JSON_NAME, message.id)
+
+        update_settings(
+            _MSG_JSON_NAME, {
+                "MSG_ID": message.id,
+                "CHANNEL_ID": ctx.channel.id
+            }
+        )
 
         all_emojis = [
             *list(self.__generate_emojis(max_group)),
@@ -166,34 +204,55 @@ class AssignRolesCog(commands.Cog):
         for emoji in all_emojis:
             await message.add_reaction(emoji)
 
-    @ _roles.command(name='update')
+    @ _roles.command(
+        name='update',
+        brief='Update current main message',
+        description='''You can use this on any channel,
+        but only on the main channel the message will be deleted.
+        If main message not exists, send info about it.
+        '''
+    )
     async def _update(
         self,
         ctx: commands.Context,
         max_group: str | None = None,
         * _
     ) -> None:
+        msg_settings: dict = settings.get(_MSG_JSON_NAME)
+        channel_id = msg_settings.get("CHANNEL_ID")
+
+        if channel_id == ctx.channel.id:
+            await ctx.message.delete()
+
         if reason := self.__validate_max_groups_input(max_group):
             return await ctx.send(
                 f'{ctx.author.mention} {reason}',
-                delete_after=7
+                delete_after=(7 if channel_id == ctx.channel.id else None)
             )
 
         max_group = int(max_group)
-        message_id = settings.get(_MSG_ID_JSON_NAME)
 
         try:
-            message = await ctx.channel.fetch_message(message_id)
-        except nextcord.NotFound:
+            channel, message = await MainMessageUtils.fetch_channel_n_msg(
+                ctx, _MSG_JSON_NAME
+            )
+        except (nextcord.NotFound, nextcord.HTTPException, commands.errors.CommandInvokeError):
             return await ctx.send(
                 'Nie znaleziono wiadmomości do zaktualizowania. '
                 'Zaktualizuj settings.json lub użyj komendy \'roles send\'.',
-                delete_after=10
+                delete_after=(10 if channel_id == ctx.channel.id else None)
             )
 
-        embed = self.__generate_embed(max_group)
-        await message.edit(embed=embed)
-        await message.clear_reactions()
+        embed = self.generate_embed(max_group)
+        await asyncio.gather(
+            message.edit(embed=embed),
+            message.clear_reactions()
+        )
+
+        if channel.id != ctx.channel.id:
+            await ctx.send(
+                f'{ctx.author.mention} Zaktualizowano role na {ctx.channel.mention}'
+            )
 
         all_emojis = [
             *list(self.__generate_emojis(max_group)),
@@ -202,6 +261,19 @@ class AssignRolesCog(commands.Cog):
 
         for emoji in all_emojis:
             await message.add_reaction(emoji)
+
+    @is_bot_channel()
+    @_roles.command(
+        name='preview',
+        brief='Show preview of archive info embeds',
+        description='Only on the bot-channel.'
+    )
+    async def _preview(self, ctx: commands.Context, max_group: str | None = None, *_) -> None:
+        if reason := self.__validate_max_groups_input(max_group):
+            return await ctx.send(f'{ctx.author.mention} {reason}')
+
+        embed = self.generate_embed(int(max_group), preview=True)
+        await ctx.send(embed=embed)
 
 
 def setup(bot: commands.Bot):

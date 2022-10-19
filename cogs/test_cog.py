@@ -1,8 +1,11 @@
 import os
+
+from nextcord.message import Message
 from nextcord.ext import commands
 
 from utils.checks import has_admin_role, is_bot_channel
 from utils.settings import load_settings
+from utils.console import Console
 
 
 class TestCog(commands.Cog):
@@ -13,30 +16,45 @@ class TestCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self) -> None:
-        print('Bot załadowany!')
+        Console.info('Bot załadowany')
+
+    @commands.Cog.listener()
+    async def on_message(self, message: Message) -> None:
+        if message.content:
+            Console.message(
+                message.content,
+                f'{message.author.display_name}/{message.author}/{message.channel}'
+            )
 
     @has_admin_role()
     @is_bot_channel()
-    @commands.command(name='print')
+    @commands.command(
+        name='print',
+        brief='Print message content to the console',
+        description='''Only on the bot-channel. Only for debug.'''
+    )
     async def _print(self, _, *args) -> None:
         print('\n'.join(args))
 
     @has_admin_role()
     @is_bot_channel()
-    @commands.command(name='reload_settings')
+    @commands.command(
+        name='reload_settings',
+        brief='Reload settings from json',
+        description='Only on the bot-channel'
+    )
     async def _reload_settings(self, ctx: commands.Context, *_) -> None:
-        await ctx.message.delete()
-
         try:
             load_settings()
         except Exception as e:
-            await ctx.send(f'{ctx.author.mention} {e}', delete_after=5)
+            Console.important_error('Nie udało się przeładować ustawień', e)
+            await ctx.send(f'{ctx.author.mention} {e}')
         else:
-            await ctx.send(f'Przeładowano ustawienia.', delete_after=3)
+            await ctx.send(f'{ctx.author.mention} Przeładowano ustawienia.')
 
     @has_admin_role()
     @is_bot_channel()
-    @commands.group(name='cogs')
+    @commands.group(name='cogs', brief='Discord alias for `category`')
     async def _cogs(self, *_) -> None:
         pass
 
@@ -50,14 +68,27 @@ class TestCog(commands.Cog):
             )
 
         await ctx.send(f'Pomyślnie przeładowano/załadowano {cog_path}')
-        print(f'{ctx.author.display_name} podłączył {cog_path}')
+        Console.cogs(f'{ctx.author.display_name} podłączył {cog_path}')
 
-    @_cogs.command(name='load')
+    @_cogs.command(
+        name='load',
+        brief='Load cog',
+        description='''Only on the bot-channel.
+        If cog name not exists, send all cog names.
+        '''
+    )
     async def _load(self, ctx: commands.Context, name: str | None = None, *_) -> None:
         cog_path = f'cogs.{name.lower()}_cog'
         await self.__load_cog(ctx, cog_path)
 
-    @_cogs.command(name='reload')
+    @_cogs.command(
+        name='reload',
+        brief='Reload cog',
+        description='''Only on the bot-channel.
+        If cog name not exists, send all cog names.
+        If cog is not loaded, send an info.
+        '''
+    )
     async def _reload(self, ctx: commands.Context, name: str | None = None, *_) -> None:
         if name is None:
             return await ctx.send('Gimme cog name!')
@@ -66,16 +97,14 @@ class TestCog(commands.Cog):
 
         try:
             self.__bot.unload_extension(cog_path)
-            print(
-                f'{ctx.author.display_name} odłączył {cog_path}'
-            )
+            Console.cogs(f'{ctx.author.display_name} odłączył {cog_path}')
         except Exception as e:
             return await ctx.send(
                 f'Cog \'{cog_path}\' not found.\n'
                 f'Reason: {e}\n\n'
                 'Available cogs:\n' +
                 ('\n'.join(
-                    path for path in os.listdir(
+                    path[:-7] for path in os.listdir(
                         'cogs/') if path.endswith('_cog.py')
                 ))
             )

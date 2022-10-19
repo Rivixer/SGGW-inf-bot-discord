@@ -1,5 +1,8 @@
 from nextcord import Activity, ActivityType
 from nextcord.ext import commands
+from utils.checks import has_admin_role, is_bot_channel
+
+from utils.console import Console
 
 
 class StatusCog(commands.Cog):
@@ -13,11 +16,16 @@ class StatusCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self) -> None:
+        file_path = 'status.txt'
+
         try:
-            with open('status.txt', encoding='utf-8') as f:
+            with open(file_path, encoding='utf-8') as f:
                 status = f.read()
         except Exception as e:
-            print(f'Status error: {e}')
+            Console.error(
+                f'Nie udało się wczytać pliku {file_path}',
+                exception=e
+            )
 
         await self.__bot.change_presence(
             activity=Activity(
@@ -26,17 +34,20 @@ class StatusCog(commands.Cog):
             )
         )
 
-    @commands.command(name='status')
+    @is_bot_channel()
+    @has_admin_role()
+    @commands.command(
+        name='status',
+        brief='Change bot status',
+        description='Only on the bot-channel.'
+    )
     async def _status(self, ctx: commands.Context, *text) -> None:
-        await ctx.message.delete()
-
         try:
             with open('status.txt', 'w', encoding='utf-8') as f:
                 f.write(' '.join(text))
         except Exception as e:
             return await ctx.send(
-                f'{ctx.author.mention} Something went wrong!\n{e}',
-                delete_after=15
+                f'{ctx.author.mention} Coś poszło nie tak!\n{e}'
             )
 
         await self.__bot.change_presence(
