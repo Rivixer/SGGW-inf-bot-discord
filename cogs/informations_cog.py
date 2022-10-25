@@ -114,7 +114,7 @@ class InformationsCog(commands.Cog):
         self.__add_info_fields(
             embed, f'files{"/preview" if preview else ""}/info.json'
         )
-        self.__add_link_fields(embed)
+        self.__add_link_fields(embed, preview=preview)
         self.__add_info_fields(
             embed, f'files{"/preview" if preview else ""}/info2.json'
         )
