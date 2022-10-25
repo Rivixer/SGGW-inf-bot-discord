@@ -188,6 +188,8 @@ class InformationsCog(commands.Cog):
 
         UpdateEmbed.override_file('info')
         UpdateEmbed.override_file('info2')
+        UpdateEmbed.override_file('council')
+        UpdateEmbed.override_file('links')
 
         embed = self.generate_embed(ctx)
         await message.edit(embed=embed)
