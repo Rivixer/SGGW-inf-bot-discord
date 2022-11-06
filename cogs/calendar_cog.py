@@ -306,10 +306,10 @@ class CalendarCog(commands.Cog):
         name='new',
         brief=f'Type \'{BOT_PREFIX}help calendar new\' for more info',
         description=f"""Create new event. Only on bot-channel.
-        Use: '{BOT_PREFIX}calendar new date time text...'
+        Use: '{BOT_PREFIX}calendar new [date] [time] [text...]'
         Where:
-            date - 'dd.mm.yyyy' (e.g. 03.04.2012)
-            time - 'HH.MM' (e.g. 7.30) or '-' if not specified
+            [date] - 'dd.mm.yyyy' (e.g. 03.04.2012)
+            [time] - 'HH.MM' (e.g. 7.30) or '-' if not specified
         You can use ':' or '-' separator instead of '.'
         Examples:
             {BOT_PREFIX}calendar new 01-10-2023 9:00 Rozpoczęcie studiów
@@ -406,7 +406,7 @@ class CalendarCog(commands.Cog):
     @ is_bot_channel()
     @ _calendar.command(
         name='preview',
-        brief='Show preview of archive info embeds',
+        brief='Show preview of calendar',
         description='Only on the bot-channel.'
     )
     async def _preview(self, ctx: commands.Context, *_) -> None:
