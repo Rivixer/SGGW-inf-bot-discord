@@ -310,7 +310,7 @@ class BingoRPiSCog(commands.Cog):
     )
     @is_channel('RPIS_CHANNEL_ID', 'BOT_CHANNEL_ID')
     async def _bingo(self, ctx: commands.Context, field: str = "", *args) -> None:
-        if ctx.channel.id == int(settings.get('BOT_CHANNEL_ID')) and (len(args) == 0 or args[0] != '--s'):
+        if ctx.channel.id == int(settings.get('BOT_CHANNEL_ID')) and (len(args) == 0 or '--s' not in args):
             return await ctx.reply(
                 'Jeśli jesteś pewien, że chcesz użyć tego tu, dopisz `--s` na końcu!'
             )
