@@ -346,6 +346,7 @@ class BingoRPiSCog(commands.Cog):
         _BingoRPiSController.save_bingo(table)
         bingo_png = _BingoRPiSController.load_bingo_png()
 
+        await asyncio.sleep(0.05)
         msg = await ctx.reply(file=bingo_png, mention_author=False)
         self.__add_msg_id_to_history(msg)
         self.__changing_bingo = False
