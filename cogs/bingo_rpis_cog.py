@@ -1,5 +1,7 @@
+from matplotlib.table import Table as tbl
 import matplotlib.pyplot as plt
 import datetime as dt
+import PIL.Image
 import textwrap
 import asyncio
 import random
@@ -22,13 +24,15 @@ from main import BOT_PREFIX
 _TABLE_PNG_PATH = 'bingo.png'
 _TABLE_PICKLE_PATH = 'bingo.pickle'
 _BINGO_PHRASES_PATH = 'files/bingo.txt'
+_FIREWORKS_RAW_FOLDER = 'bingo-fireworks-gif-raw/'
 
 
 class _Table:
-    CHECKED_COLOUR = '#ef0000'
-    UNCHECKED_COLOUR = '#7ef182'
-    TITLE_COLOUR = '#aaaaaa'
-    ROWS_COLUMNS_COLOUR = '#666666'
+    CHECKED_COLOUR = '#5fc377'
+    UNCHECKED_COLOUR = '#999999'
+    TITLE_COLOUR = '#ffffff'
+    ROWS_COLUMNS_COLOUR = '#696969'
+    ROWS_COLUMNS_CHECKED_COLOUR = '#a0a000'
     DIMENSION = 4
 
     assert 0 < DIMENSION <= 26
@@ -44,7 +48,7 @@ class _BingoRPiSController:
         self.__bot = bot
 
     @staticmethod
-    def save_bingo(table) -> None:
+    def save_bingo(table: tbl) -> None:
         plt.savefig(
             _TABLE_PNG_PATH,
             bbox_inches="tight",
@@ -56,7 +60,7 @@ class _BingoRPiSController:
         )
 
     @staticmethod
-    def load_bingo() -> ...:
+    def load_bingo() -> tbl:
         return pickle.load(open(_TABLE_PICKLE_PATH, 'rb'))
 
     @staticmethod
@@ -85,16 +89,14 @@ class _BingoRPiSController:
         else:
             random.shuffle(words)
 
-            def wrap_text(words: list) -> list:
-                return ['\n'.join(textwrap.wrap(i, 12)) for i in words]
+            def wrap_text(words: list[str]) -> list:
+                return ['\n'.join(textwrap.wrap(i.split('--')[0].strip(), 13)) for i in words]
 
             table = plt.table(
-                cellText=(
-                    (wrap_text(words[:4])),
-                    (wrap_text(words[4:8])),
-                    (wrap_text(words[8:12])),
-                    (wrap_text(words[12:16]))
-                ),
+                cellText=[
+                    wrap_text(words[i:i+_Table.DIMENSION])
+                    for i in range(0, _Table.DIMENSION**2, _Table.DIMENSION)
+                ],
                 cellColours=[
                     [_Table.UNCHECKED_COLOUR] * _Table.DIMENSION
                 ] * _Table.DIMENSION,
@@ -113,9 +115,19 @@ class _BingoRPiSController:
                 loc='center',
             )
 
+            for i, word in enumerate(words):
+                if i >= _Table.DIMENSION ** 2:
+                    break
+                if len(w := word.split('--')) > 1:
+                    if w[1].strip().upper() == 'CHECKED':
+                        x_field = i % _Table.DIMENSION
+                        y_field = i // _Table.DIMENSION + 1
+                        field = table[(y_field, x_field)]
+                        field.set_facecolor(_Table.CHECKED_COLOUR)
+
         table.scale(1.5, 5.2)
 
-        for i in range(4):
+        for i in range(_Table.DIMENSION):
             table[(0, i)].set_height(0.05)
 
         plt.axis('off')
@@ -243,6 +255,41 @@ class BingoRPiSCog(commands.Cog):
             mention_author=True,
         )
 
+    async def __handle_win(self, ctx: commands.Context) -> None:
+
+        images: list[PIL.Image.Image] = []
+
+        for confetti_file_path in os.listdir(_FIREWORKS_RAW_FOLDER):
+            if not confetti_file_path.endswith('.png'):
+                continue
+
+            bingo_file = PIL.Image.open(_TABLE_PNG_PATH)
+            bingo_png = bingo_file.convert('RGBA')
+
+            confetti_file = PIL.Image.open(
+                _FIREWORKS_RAW_FOLDER + confetti_file_path
+            )
+            confetti_png = confetti_file.convert('RGBA')
+            confetti_png = confetti_png.resize(bingo_png.size)
+
+            bingo_png.paste(confetti_png, (0, 0), confetti_png)
+            images.append(bingo_png)
+
+        image = images.pop(0)
+        image.save(
+            'bingo_win.gif', 'GIF', append_images=images,
+            save_all=True, duration=100, disposal=2, loop=0
+        )
+
+        bingo_gif = nextcord.File('bingo_win.gif')
+        await asyncio.sleep(0.12)
+        msg = await ctx.reply(
+            file=bingo_gif,
+            mention_author=False
+        )
+        self.__add_msg_id_to_history(msg)
+        self.__changing_bingo = False
+
     @commands.command(
         name='bingo',
         brief='Check out field in RPiS bingo!',
@@ -261,8 +308,13 @@ class BingoRPiSCog(commands.Cog):
         Use: `bingo info` to send info how to use bingo.
         '''
     )
-    @is_channel('RPIS_CHANNEL_ID')
+    @is_channel('RPIS_CHANNEL_ID', 'BOT_CHANNEL_ID')
     async def _bingo(self, ctx: commands.Context, field: str = "", *args) -> None:
+        if ctx.channel.id == int(settings.get('BOT_CHANNEL_ID')) and (len(args) == 0 or args[0] != '--s'):
+            return await ctx.reply(
+                'Jeśli jesteś pewien, że chcesz użyć tego tu, dopisz `--s` na końcu!'
+            )
+
         if field == "":
             return await ctx.reply(
                 'Niepoprawne użycie komendy.\n'
@@ -274,7 +326,7 @@ class BingoRPiSCog(commands.Cog):
             return await self._new_bingo(ctx, *args)
 
         if field.upper() == 'SHOW':
-            return await self.__show_bingo_again(ctx)
+            return await self._show_bingo_again(ctx)
 
         if field.upper() in ('BAN', 'UNBAN', 'INFO'):
             admin_role = ctx.guild.get_role(settings.get("ADMIN_ROLE_ID"))
@@ -285,7 +337,7 @@ class BingoRPiSCog(commands.Cog):
                     case 'UNBAN':
                         return await self._unban_user(ctx, *args)
                     case 'INFO':
-                        return await self.__show_info(ctx)
+                        return await self._show_info(ctx)
             return await ctx.reply(
                 f'Tylko {admin_role.mention} może używać tej funkcji!',
                 allowed_mentions=AllowedMentions.none(),
@@ -308,8 +360,8 @@ class BingoRPiSCog(commands.Cog):
         table = _BingoRPiSController.load_bingo()
 
         try:
-            y_field = ord(field[0].upper()) - 65
-            x_field = int(field[1])
+            x_field = ord(field[0].upper()) - 65
+            y_field = int(field[1])
         except:
             return await ctx.reply(
                 'Złe użycie funkcji!\n'
@@ -317,9 +369,9 @@ class BingoRPiSCog(commands.Cog):
                 f'np. **{BOT_PREFIX}bingo {generate_random_field()}**'
             )
 
-        if not (0 <= y_field < _Table.DIMENSION):
+        if not (0 <= x_field < _Table.DIMENSION):
             reason = f'Wartość <kolumna> nie mieści się z zakresu A-{chr(_Table.DIMENSION + 65 - 1)}!'
-        elif not (0 < x_field <= _Table.DIMENSION):
+        elif not (0 < y_field <= _Table.DIMENSION):
             reason = f'Wartość <wiersz> nie mieści się z zakresu 1-{_Table.DIMENSION}!'
         else:
             reason = None
@@ -335,7 +387,7 @@ class BingoRPiSCog(commands.Cog):
 
         self.__changing_bingo = True
 
-        field = table[(x_field, y_field)]
+        field = table[(y_field, x_field)]
         current_facecolor = self.__convert_facecolor_to_hex(field)
 
         if current_facecolor == _Table.CHECKED_COLOUR:
@@ -343,10 +395,34 @@ class BingoRPiSCog(commands.Cog):
         elif current_facecolor == _Table.UNCHECKED_COLOUR:
             field.set_facecolor(_Table.CHECKED_COLOUR)
 
+        for y in range(1, _Table.DIMENSION + 1):
+            row = [table[y, x] for x in range(_Table.DIMENSION)]
+            if all(map(lambda i: self.__convert_facecolor_to_hex(i) == _Table.CHECKED_COLOUR, row)):
+                table[y, -1].set_facecolor(_Table.ROWS_COLUMNS_CHECKED_COLOUR)
+            else:
+                table[y, -1].set_facecolor(_Table.ROWS_COLUMNS_COLOUR)
+
+        for x in range(_Table.DIMENSION):
+            column = [table[y, x] for y in range(1, _Table.DIMENSION + 1)]
+            if all(map(lambda i: self.__convert_facecolor_to_hex(i) == _Table.CHECKED_COLOUR, column)):
+                table[0, x].set_facecolor(_Table.ROWS_COLUMNS_CHECKED_COLOUR)
+            else:
+                table[0, x].set_facecolor(_Table.ROWS_COLUMNS_COLOUR)
+
         _BingoRPiSController.save_bingo(table)
         bingo_png = _BingoRPiSController.load_bingo_png()
 
-        await asyncio.sleep(0.05)
+        for y, x in table.get_celld():
+            if y == 0 or x == -1:
+                continue
+            cell = table[y, x]
+            current_facecolor = self.__convert_facecolor_to_hex(cell)
+            if current_facecolor == _Table.UNCHECKED_COLOUR:
+                break
+        else:
+            return await self.__handle_win(ctx)
+
+        await asyncio.sleep(0.12)
         msg = await ctx.reply(file=bingo_png, mention_author=False)
         self.__add_msg_id_to_history(msg)
         self.__changing_bingo = False
@@ -380,7 +456,19 @@ class BingoRPiSCog(commands.Cog):
             allowed_mentions=AllowedMentions.none()
         )
 
-    async def __show_info(self, ctx: commands.Context) -> None:
+    async def _show_info(self, ctx: commands.Context) -> None:
+        phrases = ''.join(
+            f'{i+1}. {j.split("--")[0]}' for i, j in enumerate(open(
+                _BINGO_PHRASES_PATH, 'r',
+                encoding='utf-8').readlines())
+        )
+
+        phrases2 = ""
+        for i in phrases:
+            if i == '*':
+                phrases2 += '\\'
+            phrases2 += i
+
         embed = Embed(
             title='Nudzi Ci się na lekcji RPiS?',
             description='Zawsze można zagrać w bingo! 😁',
@@ -399,9 +487,16 @@ class BingoRPiSCog(commands.Cog):
             inline=False,
         ).add_field(
             name='Obecne powiedzonka:',
-            value=''.join(f'{i+1}. {j}' for i, j in enumerate(open(
-                _BINGO_PHRASES_PATH, 'r',
-                encoding='utf-8').readlines())),
+            value=phrases2,
+            inline=False,
+        ).add_field(
+            name='Aktualizacja!',
+            value=(
+                "Zmiany:\n"
+                "1. Nowe hasła\n"
+                "2. Efekt wygranej\n"
+                "3. Zmiana kolorów"
+            ),
             inline=False,
         ).set_footer(
             text='Uwagi lub propozycje powiedzonek proszę przesyłać do Wiktor J lub Krzysztof K'
@@ -412,7 +507,7 @@ class BingoRPiSCog(commands.Cog):
             ctx.send(embed=embed),
         )
 
-    async def __show_bingo_again(self, ctx: commands.Context) -> None:
+    async def _show_bingo_again(self, ctx: commands.Context) -> None:
         bingo_png = _BingoRPiSController.load_bingo_png()
         if bingo_png is None:
             return await ctx.reply(
