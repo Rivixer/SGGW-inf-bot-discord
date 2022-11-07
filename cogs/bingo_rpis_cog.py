@@ -259,7 +259,11 @@ class BingoRPiSCog(commands.Cog):
 
         images: list[PIL.Image.Image] = []
 
-        for confetti_file_path in os.listdir(_FIREWORKS_RAW_FOLDER):
+        confetti_file_paths = sorted(
+            os.listdir(_FIREWORKS_RAW_FOLDER),
+            key=lambda i: int(i[6:8])
+        )
+        for confetti_file_path in confetti_file_paths:
             if not confetti_file_path.endswith('.png'):
                 continue
 
@@ -282,7 +286,7 @@ class BingoRPiSCog(commands.Cog):
         )
 
         bingo_gif = nextcord.File('bingo_win.gif')
-        await asyncio.sleep(0.12)
+        await asyncio.sleep(0.02)
         msg = await ctx.reply(
             file=bingo_gif,
             mention_author=False
@@ -422,7 +426,7 @@ class BingoRPiSCog(commands.Cog):
         else:
             return await self.__handle_win(ctx)
 
-        await asyncio.sleep(0.12)
+        await asyncio.sleep(0.02)
         msg = await ctx.reply(file=bingo_png, mention_author=False)
         self.__add_msg_id_to_history(msg)
         self.__changing_bingo = False
