@@ -361,7 +361,16 @@ class BingoRPiSCog(commands.Cog):
                 f'np. **{BOT_PREFIX}bingo {generate_random_field()}**'
             )
 
-        table = _BingoRPiSController.load_bingo()
+        try:
+            table = _BingoRPiSController.load_bingo()
+        except Exception as e:
+            Console.error(
+                "Problem z ładowaniem bingo.pickle", exception=e
+            )
+            return await ctx.reply(
+                'Coś poszło nie tak!\n'
+                'Szczegółowe informacje w konsoli programisty.'
+            )
 
         try:
             x_field = ord(field[0].upper()) - 65
