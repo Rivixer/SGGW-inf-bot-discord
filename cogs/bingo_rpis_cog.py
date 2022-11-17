@@ -259,7 +259,11 @@ class BingoRPiSCog(commands.Cog):
 
         images: list[PIL.Image.Image] = []
 
-        for confetti_file_path in os.listdir(_FIREWORKS_RAW_FOLDER):
+        confetti_file_paths = sorted(
+            os.listdir(_FIREWORKS_RAW_FOLDER),
+            key=lambda i: int(i[6:8])
+        )
+        for confetti_file_path in confetti_file_paths:
             if not confetti_file_path.endswith('.png'):
                 continue
 
@@ -282,7 +286,7 @@ class BingoRPiSCog(commands.Cog):
         )
 
         bingo_gif = nextcord.File('bingo_win.gif')
-        await asyncio.sleep(0.12)
+        await asyncio.sleep(0.02)
         msg = await ctx.reply(
             file=bingo_gif,
             mention_author=False
@@ -310,120 +314,142 @@ class BingoRPiSCog(commands.Cog):
     )
     @is_channel('RPIS_CHANNEL_ID', 'BOT_CHANNEL_ID')
     async def _bingo(self, ctx: commands.Context, field: str = "", *args) -> None:
-        if ctx.channel.id == int(settings.get('BOT_CHANNEL_ID')) and (len(args) == 0 or args[0] != '--s'):
-            return await ctx.reply(
-                'Jeśli jesteś pewien, że chcesz użyć tego tu, dopisz `--s` na końcu!'
-            )
+
+        if ctx.channel.id == int(settings.get('BOT_CHANNEL_ID')) and (len(args) == 0 or '--s' not in args):
+            async with ctx.typing():
+                return await ctx.reply(
+                    'Jeśli jesteś pewien, że chcesz użyć tego tu, dopisz `--s` na końcu!'
+                )
 
         if field == "":
-            return await ctx.reply(
-                'Niepoprawne użycie komendy.\n'
-                f'Aby dowiedzieć się więcej, napisz - `{BOT_PREFIX}help bingo`',
-                mention_author=True
-            )
+            async with ctx.typing():
+                return await ctx.reply(
+                    'Niepoprawne użycie komendy.\n'
+                    f'Aby dowiedzieć się więcej, napisz - `{BOT_PREFIX}help bingo`',
+                    mention_author=True
+                )
 
         if field.upper() in ('NEW', 'NOWA'):
             return await self._new_bingo(ctx, *args)
 
-        if field.upper() == 'SHOW':
-            return await self._show_bingo_again(ctx)
+        async with ctx.typing():
 
-        if field.upper() in ('BAN', 'UNBAN', 'INFO'):
-            admin_role = ctx.guild.get_role(settings.get("ADMIN_ROLE_ID"))
-            if admin_role in ctx.author.roles:
-                match field.upper():
-                    case 'BAN':
-                        return await self._ban_user(ctx, *args)
-                    case 'UNBAN':
-                        return await self._unban_user(ctx, *args)
-                    case 'INFO':
-                        return await self._show_info(ctx)
-            return await ctx.reply(
-                f'Tylko {admin_role.mention} może używać tej funkcji!',
-                allowed_mentions=AllowedMentions.none(),
-                mention_author=True,
-            )
+            if field.upper() == 'SHOW':
+                return await self._show_bingo_again(ctx)
 
-        def generate_random_field() -> str:
-            letter_id = random.randint(0, _Table.DIMENSION - 1)
-            letter = chr(letter_id + 65 + random.randint(0, 1) * 32)
-            number = random.randint(1, _Table.DIMENSION)
-            return f'{letter}{number}'
+            if field.upper() in ('BAN', 'UNBAN', 'INFO'):
+                admin_role = ctx.guild.get_role(settings.get("ADMIN_ROLE_ID"))
+                if admin_role in ctx.author.roles:
+                    match field.upper():
+                        case 'BAN':
+                            return await self._ban_user(ctx, *args)
+                        case 'UNBAN':
+                            return await self._unban_user(ctx, *args)
+                        case 'INFO':
+                            return await self._show_info(ctx)
+                return await ctx.reply(
+                    f'Tylko {admin_role.mention} może używać tej funkcji!',
+                    allowed_mentions=AllowedMentions.none(),
+                    mention_author=True,
+                )
 
-        if len(field) != 2:
-            return await ctx.reply(
-                'Złe użycie funkcji!\n'
-                f'Prawidłowe użycie: **{BOT_PREFIX}bingo <kolumna><wiersz>** '
-                f'np. **{BOT_PREFIX}bingo {generate_random_field()}**'
-            )
+            def generate_random_field() -> str:
+                letter_id = random.randint(0, _Table.DIMENSION - 1)
+                letter = chr(letter_id + 65 + random.randint(0, 1) * 32)
+                number = random.randint(1, _Table.DIMENSION)
+                return f'{letter}{number}'
 
-        table = _BingoRPiSController.load_bingo()
+            if len(field) != 2:
+                return await ctx.reply(
+                    'Złe użycie funkcji!\n'
+                    f'Prawidłowe użycie: **{BOT_PREFIX}bingo <kolumna><wiersz>** '
+                    f'np. **{BOT_PREFIX}bingo {generate_random_field()}**'
+                )
 
-        try:
-            x_field = ord(field[0].upper()) - 65
-            y_field = int(field[1])
-        except:
-            return await ctx.reply(
-                'Złe użycie funkcji!\n'
-                f'Prawidłowe użycie: **{BOT_PREFIX}bingo <kolumna><wiersz>** '
-                f'np. **{BOT_PREFIX}bingo {generate_random_field()}**'
-            )
+            try:
+                table = _BingoRPiSController.load_bingo()
+            except Exception as e:
+                Console.error(
+                    "Problem z ładowaniem bingo.pickle", exception=e
+                )
+                return await ctx.reply(
+                    'Coś poszło nie tak!\n'
+                    'Szczegółowe informacje w konsoli programisty.'
+                )
 
-        if not (0 <= x_field < _Table.DIMENSION):
-            reason = f'Wartość <kolumna> nie mieści się z zakresu A-{chr(_Table.DIMENSION + 65 - 1)}!'
-        elif not (0 < y_field <= _Table.DIMENSION):
-            reason = f'Wartość <wiersz> nie mieści się z zakresu 1-{_Table.DIMENSION}!'
-        else:
-            reason = None
+            try:
+                x_field = ord(field[0].upper()) - 65
+                y_field = int(field[1])
+            except:
+                return await ctx.reply(
+                    'Złe użycie funkcji!\n'
+                    f'Prawidłowe użycie: **{BOT_PREFIX}bingo <kolumna><wiersz>** '
+                    f'np. **{BOT_PREFIX}bingo {generate_random_field()}**'
+                )
 
-        if reason is not None:
-            return await ctx.reply(f'Nieprawidłowe pole! {reason}')
-
-        if self.__changing_bingo:
-            return await ctx.reply(
-                'Obecnie przetwarzana jest inna komenda. '
-                'Spróbuj ponownie za chwilę.'
-            )
-
-        self.__changing_bingo = True
-
-        field = table[(y_field, x_field)]
-        current_facecolor = self.__convert_facecolor_to_hex(field)
-
-        if current_facecolor == _Table.CHECKED_COLOUR:
-            field.set_facecolor(_Table.UNCHECKED_COLOUR)
-        elif current_facecolor == _Table.UNCHECKED_COLOUR:
-            field.set_facecolor(_Table.CHECKED_COLOUR)
-
-        for y in range(1, _Table.DIMENSION + 1):
-            row = [table[y, x] for x in range(_Table.DIMENSION)]
-            if all(map(lambda i: self.__convert_facecolor_to_hex(i) == _Table.CHECKED_COLOUR, row)):
-                table[y, -1].set_facecolor(_Table.ROWS_COLUMNS_CHECKED_COLOUR)
+            if not (0 <= x_field < _Table.DIMENSION):
+                reason = f'Wartość <kolumna> nie mieści się z zakresu A-{chr(_Table.DIMENSION + 65 - 1)}!'
+            elif not (0 < y_field <= _Table.DIMENSION):
+                reason = f'Wartość <wiersz> nie mieści się z zakresu 1-{_Table.DIMENSION}!'
             else:
-                table[y, -1].set_facecolor(_Table.ROWS_COLUMNS_COLOUR)
+                reason = None
 
-        for x in range(_Table.DIMENSION):
-            column = [table[y, x] for y in range(1, _Table.DIMENSION + 1)]
-            if all(map(lambda i: self.__convert_facecolor_to_hex(i) == _Table.CHECKED_COLOUR, column)):
-                table[0, x].set_facecolor(_Table.ROWS_COLUMNS_CHECKED_COLOUR)
+            if reason is not None:
+                return await ctx.reply(f'Nieprawidłowe pole! {reason}')
+
+            if self.__changing_bingo:
+                return await ctx.reply(
+                    'Obecnie przetwarzana jest inna komenda. '
+                    'Spróbuj ponownie za chwilę.'
+                )
+
+            self.__changing_bingo = True
+
+            field = table[(y_field, x_field)]
+            current_facecolor = self.__convert_facecolor_to_hex(field)
+
+            if current_facecolor == _Table.CHECKED_COLOUR:
+                field.set_facecolor(_Table.UNCHECKED_COLOUR)
+            elif current_facecolor == _Table.UNCHECKED_COLOUR:
+                field.set_facecolor(_Table.CHECKED_COLOUR)
+
+            for y in range(1, _Table.DIMENSION + 1):
+                row = [table[y, x] for x in range(_Table.DIMENSION)]
+                if all(map(lambda i: self.__convert_facecolor_to_hex(i) == _Table.CHECKED_COLOUR, row)):
+                    table[y, -1].set_facecolor(
+                        _Table.ROWS_COLUMNS_CHECKED_COLOUR
+                    )
+                else:
+                    table[y, -1].set_facecolor(
+                        _Table.ROWS_COLUMNS_COLOUR
+                    )
+
+            for x in range(_Table.DIMENSION):
+                column = [table[y, x] for y in range(1, _Table.DIMENSION + 1)]
+                if all(map(lambda i: self.__convert_facecolor_to_hex(i) == _Table.CHECKED_COLOUR, column)):
+                    table[0, x].set_facecolor(
+                        _Table.ROWS_COLUMNS_CHECKED_COLOUR
+                    )
+                else:
+                    table[0, x].set_facecolor(
+                        _Table.ROWS_COLUMNS_COLOUR
+                    )
+
+            _BingoRPiSController.save_bingo(table)
+            bingo_png = _BingoRPiSController.load_bingo_png()
+
+            for y, x in table.get_celld():
+                if y == 0 or x == -1:
+                    continue
+                cell = table[y, x]
+                current_facecolor = self.__convert_facecolor_to_hex(cell)
+                if current_facecolor == _Table.UNCHECKED_COLOUR:
+                    break
             else:
-                table[0, x].set_facecolor(_Table.ROWS_COLUMNS_COLOUR)
+                return await self.__handle_win(ctx)
 
-        _BingoRPiSController.save_bingo(table)
-        bingo_png = _BingoRPiSController.load_bingo_png()
-
-        for y, x in table.get_celld():
-            if y == 0 or x == -1:
-                continue
-            cell = table[y, x]
-            current_facecolor = self.__convert_facecolor_to_hex(cell)
-            if current_facecolor == _Table.UNCHECKED_COLOUR:
-                break
-        else:
-            return await self.__handle_win(ctx)
-
-        await asyncio.sleep(0.12)
-        msg = await ctx.reply(file=bingo_png, mention_author=False)
+            await asyncio.sleep(0.02)
+            msg = await ctx.reply(file=bingo_png, mention_author=False)
         self.__add_msg_id_to_history(msg)
         self.__changing_bingo = False
 

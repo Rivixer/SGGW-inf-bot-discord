@@ -114,7 +114,7 @@ class InformationsCog(commands.Cog):
         self.__add_info_fields(
             embed, f'files{"/preview" if preview else ""}/info.json'
         )
-        self.__add_link_fields(embed)
+        self.__add_link_fields(embed, preview=preview)
         self.__add_info_fields(
             embed, f'files{"/preview" if preview else ""}/info2.json'
         )
@@ -188,6 +188,8 @@ class InformationsCog(commands.Cog):
 
         UpdateEmbed.override_file('info')
         UpdateEmbed.override_file('info2')
+        UpdateEmbed.override_file('council')
+        UpdateEmbed.override_file('links')
 
         embed = self.generate_embed(ctx)
         await message.edit(embed=embed)
@@ -200,7 +202,7 @@ class InformationsCog(commands.Cog):
     @is_bot_channel()
     @_info.command(
         name='preview',
-        brief='Show preview of archive info embeds',
+        brief='Show preview of informations embed',
         description='Only on the bot-channel.'
     )
     async def _preview(self, ctx: commands.Context, *_) -> None:

@@ -265,7 +265,7 @@ class AssignRolesCog(commands.Cog):
     @is_bot_channel()
     @_roles.command(
         name='preview',
-        brief='Show preview of archive info embeds',
+        brief='Show preview of assign roles embed',
         description='Only on the bot-channel.'
     )
     async def _preview(self, ctx: commands.Context, max_group: str | None = None, *_) -> None:
