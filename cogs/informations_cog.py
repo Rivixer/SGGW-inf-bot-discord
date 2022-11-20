@@ -11,7 +11,7 @@ from utils.message import MainMessageUtils
 
 from utils.settings import update_settings, settings
 from utils.checks import has_admin_role, is_bot_channel
-from main import BOT_PREFIX
+from sggw_bot import BOT_PREFIX
 from utils.update_embed import UpdateEmbed
 
 

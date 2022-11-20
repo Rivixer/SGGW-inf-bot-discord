@@ -15,7 +15,7 @@ from utils.message import MainMessageUtils
 from utils.settings import settings, update_settings
 from utils.console import Console, FontColour
 from utils.update_embed import UpdateEmbed
-from main import BOT_PREFIX
+from sggw_bot import BOT_PREFIX
 
 _event = collections.namedtuple('Event', ['date', 'time', 'text'])
 _event_time = collections.namedtuple('EventTime', ['time', 'text'])

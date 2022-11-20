@@ -12,7 +12,7 @@ from utils.settings import update_settings, settings
 from utils.message import MainMessageUtils
 from utils.update_embed import UpdateEmbed
 from utils.console import Console
-from main import BOT_PREFIX
+from sggw_bot import BOT_PREFIX
 
 T = TypeVar('T', bound=dict[str, dict[str, str | dict[str, str]]])
 

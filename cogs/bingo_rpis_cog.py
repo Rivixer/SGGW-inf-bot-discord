@@ -26,7 +26,7 @@ import nextcord
 from utils.checks import is_channel
 from utils.settings import settings
 from utils.console import Console
-from main import BOT_PREFIX
+from sggw_bot import BOT_PREFIX
 
 
 _TABLE_PNG_PATH = 'bingo.png'
