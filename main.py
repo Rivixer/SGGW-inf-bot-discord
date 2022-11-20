@@ -21,7 +21,8 @@ if __name__ == '__main__':
 
     bot = commands.Bot(
         command_prefix=BOT_PREFIX,
-        intents=intents
+        intents=intents,
+        case_insensitive=True
     )
 
     for path in Path('.').rglob('*_cog.py'):
