@@ -1,38 +1,47 @@
 from matplotlib.table import Table as tbl
+from datetime import timedelta as td
+from datetime import datetime as dt
 from difflib import SequenceMatcher
 from matplotlib.table import Cell
 import matplotlib.pyplot as plt
 from typing import ClassVar
-import datetime as dt
 import PIL.Image
 import textwrap
 import asyncio
 import random
 import pickle
 import shutil
+import json
 import os
 import re
 
 from nextcord.raw_models import RawReactionActionEvent
+from nextcord.permissions import PermissionOverwrite
 from nextcord.mentions import AllowedMentions
+from nextcord.ext import commands, tasks
+from nextcord.channel import TextChannel
 from nextcord.enums import MessageType
 from nextcord.message import Message
 from nextcord.colour import Colour
 from nextcord.member import Member
 from nextcord.embeds import Embed
-from nextcord.ext import commands
 import nextcord
 
+from utils.console import Console, FontColour
+from utils.wait_time import time_to_midnight
 from utils.checks import is_channel
 from utils.settings import settings
-from utils.console import Console
+
+from bingo.updates_embed import updates_embed
 from sggw_bot import BOT_PREFIX
 
 
-_TABLE_PNG_PATH = 'bingo.png'
-_TABLE_PICKLE_PATH = 'bingo.pickle'
-_BINGO_PHRASES_PATH = 'files/bingo.txt'
-_PICKLES_FOLDER = 'pickles/'
+_TABLE_PNG_PATH = 'bingo/bingo.png'
+_TABLE_PICKLE_PATH = 'bingo/bingo.pickle'
+_BINGO_PHRASES_PATH = 'bingo/bingo.txt'
+_PICKLES_FOLDER = 'bingo/pickles/'
+_BINGO_WIN_GIF_PATH = 'bingo/bingo_win.gif'
+_BINGO_MSG_HISTORY_PATH = 'bingo/bingo_msg_history.json'
 _FIREWORKS_RAW_FOLDER = 'bingo-fireworks-gif-raw/'
 
 
@@ -100,11 +109,11 @@ class _BingoRPiSController:
         """Generate new bingo. Save it to the file and return png file."""
 
         try:
-            with open('files/bingo.txt', encoding='utf-8') as f:
+            with open(_BINGO_PHRASES_PATH, encoding='utf-8') as f:
                 words = f.readlines()
         except Exception as e:
             Console.error(
-                'Nie udało się załadować pliku files/bingo.txt',
+                f'Nie udało się załadować pliku {_BINGO_PHRASES_PATH}',
                 exception=e
             )
 
@@ -193,16 +202,92 @@ class BingoRPiSCog(commands.Cog):
         self.__generating_bingo = False
         self.__changing_bingo = False
         self.__adding_or_deleting = list()
+        self.__send_commands_at_midnight.start()
         self.__available_args = (
             '--force',
             '--u',
             '--s'
         )
 
+    @tasks.loop(count=1)
+    async def __send_commands_at_midnight(self) -> None:
+        await self.__bot.wait_until_ready()
+
+        while True:
+            wait_time = time_to_midnight() + 5
+            await asyncio.sleep(wait_time)
+            self.__adding_or_deleting = list()
+
+            modified_timestamp = os.path.getmtime(_TABLE_PICKLE_PATH)
+            modified_time = dt.fromtimestamp(modified_timestamp)
+            yesterday = dt.now() - td(days=1)
+
+            if modified_time.date() != yesterday.date():
+                continue
+
+            channel_id: int = settings.get('RPIS_CHANNEL_ID')
+            try:
+                channel = await self.__bot.fetch_channel(channel_id)
+            except Exception as e:
+                return Console.important_error(
+                    'Bingo channel not found. Bingo loop stopped.', e
+                )
+
+            if channel.overwrites_for(self.__bot.user).view_channel is not True:
+                return Console.error(
+                    'Brak permisji do wysłania komend na bingo potajemnie. '
+                    'Zatrzymano pętle.'
+                )
+
+            await channel.set_permissions(
+                channel.guild.default_role,
+                overwrite=PermissionOverwrite(
+                    view_channel=False
+                )
+            )
+            Console.specific(
+                'Usunięto everyone z kanału.', 'BINGO',
+                colour=FontColour.PINK
+            )
+            await self._show_commands(channel)
+            Console.specific(
+                'Wysłano embed z komendami.', 'BINGO',
+                colour=FontColour.PINK
+            )
+            await channel.set_permissions(
+                channel.guild.default_role,
+                overwrite=PermissionOverwrite(
+                    view_channel=True
+                )
+            )
+            Console.specific(
+                'Przywrócono everyone do kanału.', 'BINGO',
+                colour=FontColour.PINK
+            )
+
+    async def __reset_loop(self, ctx: commands.Context) -> None:
+        await ctx.message.delete()
+        self.__send_commands_at_midnight.stop()
+        self.__send_commands_at_midnight.start()
+        Console.specific(
+            'Zresetowano pętlę z komendami w embedzie',
+            'BINGO', colour=FontColour.PINK, bold_type=True
+        )
+
     def __add_msg_id_to_history(self, msg: nextcord.Message) -> None:
         try:
-            with open('bingo_msg_history.txt', 'a') as f:
-                f.write(str(msg.id) + '\n')
+            with open(_BINGO_MSG_HISTORY_PATH, 'r') as f:
+                data: dict[str, list[int]] = json.load(f)
+
+            try:
+                data[str(msg.channel.id)].append(msg.id)
+            except Exception as ee:
+                print(ee)
+                data[str(msg.channel.id)] = [msg.id]
+
+            with open(_BINGO_MSG_HISTORY_PATH, 'w') as f:
+                json.dump(data, f, ensure_ascii=True, indent=4)
+
         except Exception as e:
             Console.error(
                 'Nie udało się zapisać bingo msg_id',
@@ -320,12 +405,11 @@ class BingoRPiSCog(commands.Cog):
 
         image = images.pop(0)
         image.save(
-            'bingo_win.gif', 'GIF', append_images=images,
+            _BINGO_WIN_GIF_PATH, 'GIF', append_images=images,
             save_all=True, duration=100, disposal=2, loop=0
         )
 
-        bingo_gif = nextcord.File('bingo_win.gif')
-        await asyncio.sleep(0.02)
+        bingo_gif = nextcord.File(_BINGO_WIN_GIF_PATH)
         msg = await ctx.reply(
             file=bingo_gif,
             mention_author=False
@@ -360,7 +444,8 @@ class BingoRPiSCog(commands.Cog):
         @AdminOnly
         Use: `{BOT_PREFIX}bingo ban <user_id>` to prohibit a user from posting on this channel.
         Use: `{BOT_PREFIX}bingo unban <user_id>` to undo it.
-        Use: `{BOT_PREFIX}bingo info` to send info how to use bingo.
+        Use: `{BOT_PREFIX}bingo info` to send info about updates.
+        Use: `{BOT_PREFIX}bingo commands` to send info how to use bingo.
         Use: `{BOT_PREFIX}bingo load <message_id>` to load old bingo from message.
         '''
     )
@@ -429,7 +514,7 @@ class BingoRPiSCog(commands.Cog):
                 case 'DEL':
                     return await self._del_phrase(ctx, ' '.join(args))
 
-            if field.upper() in ('BAN', 'UNBAN', 'INFO', 'LOAD'):
+            if field.upper() in ('BAN', 'UNBAN', 'INFO', 'LOAD', 'COMMANDS', 'RESET_LOOP'):
                 admin_role = ctx.guild.get_role(settings.get("ADMIN_ROLE_ID"))
                 if admin_role in ctx.author.roles:
                     match field.upper():
@@ -441,6 +526,10 @@ class BingoRPiSCog(commands.Cog):
                             return await self._show_info(ctx)
                         case 'LOAD':
                             return await self._load_pickle(ctx, *args)
+                        case 'COMMANDS':
+                            return await self._show_commands(ctx)
+                        case 'RESET_LOOP':
+                            return await self.__reset_loop(ctx)
                 return await ctx.reply(
                     f'Tylko {admin_role.mention} może używać tej funkcji!',
                     allowed_mentions=AllowedMentions.none(),
@@ -512,6 +601,11 @@ class BingoRPiSCog(commands.Cog):
                 cell.set_facecolor(_Table.UNCHECKED_COLOUR)
                 action_done = 'Odznaczono'
             elif current_facecolor == _Table.UNCHECKED_COLOUR:
+                if '--u' in map(str.lower, args):
+                    self.__changing_bingo = False
+                    return await ctx.reply(
+                        'To pole nie jest zaznaczone, `--u` używa się do odznaczania.'
+                    )
                 cell.set_facecolor(_Table.CHECKED_COLOUR)
                 action_done = 'Zaznaczono'
 
@@ -550,7 +644,6 @@ class BingoRPiSCog(commands.Cog):
             else:
                 return await self.__handle_win(ctx)
 
-            await asyncio.sleep(0.02)
             msg = await ctx.reply(
                 f'{action_done}: **{cell_name}**',
                 file=bingo_png,
@@ -560,13 +653,12 @@ class BingoRPiSCog(commands.Cog):
         self.__changing_bingo = False
         self.__update_pickle_file(msg)
 
-    async def __depracte_messeges(self, ctx: commands.Context, old_msg_ids: list[str]) -> None:
+    async def __depracte_messeges(self, ctx: commands.Context, old_msg_ids: list[int]) -> None:
         async def deprecate_message(id: str) -> None:
             try:
-                _id = int(id)
-                msg = await ctx.channel.fetch_message(_id)
+                msg = await ctx.channel.fetch_message(id)
                 await msg.edit(
-                    content="**PRZESTARZAŁE**",
+                    content=f'{msg.content}\n**PRZESTARZAŁE**',
                     allowed_mentions=AllowedMentions.none()
                 )
             except:
@@ -587,7 +679,8 @@ class BingoRPiSCog(commands.Cog):
 
         embed = Embed(
             title='**OBECNE POWIEDZONKA:**',
-            description=description
+            description=description,
+            colour=Colour.gold()
         )
 
         await ctx.reply(embed=embed)
@@ -612,48 +705,48 @@ class BingoRPiSCog(commands.Cog):
         )
         self.__update_pickle_file(msg)
 
-    async def _show_info(self, ctx: commands.Context) -> None:
-        phrases = ''.join(
-            f'{i+1}. {j.split("--")[0]}' for i, j in enumerate(open(
-                _BINGO_PHRASES_PATH, 'r',
-                encoding='utf-8').readlines())
-        )
-
-        phrases2 = ""
-        for i in phrases:
-            if i == '*':
-                phrases2 += '\\'
-            phrases2 += i
+    async def _show_commands(self, ctx_or_channel: TextChannel | commands.Context) -> None:
+        """If ctx was sent, the trigger message will be deleted."""
 
         embed = Embed(
-            title='Nudzi Ci się na lekcji RPiS?',
-            description='Zawsze można zagrać w bingo! 😁',
-            colour=Colour.blurple()
+            title='BINGO RPIS KOMENDY',
+            colour=Colour.green()
         ).add_field(
-            name='Generowanie nowego bingo:',
-            value=f'{BOT_PREFIX}bingo new',
+            name='GENEROWANIE NOWEGO BINGO:',
+            value=f'**{BOT_PREFIX}bingo new**\n'
+            '*dopisz \'--<kolumny>x<wiersze>\' by zmienić wielkość*',
             inline=False,
         ).add_field(
-            name='Zaznaczanie pól:',
-            value=f'{BOT_PREFIX}bingo <kolumna><wiersz>\n*(np. {BOT_PREFIX}bingo b2)*',
+            name='ZAZNACZANIE PÓL:',
+            value=f'**{BOT_PREFIX}bingo <kolumna><wiersz>** np. **{BOT_PREFIX}bingo b2**\n'
+            '*dopisz \'--u\' aby odznaczyć*',
             inline=False,
         ).add_field(
-            name='AKTUALIZACJA!',
-            value=(
-                "Zmiany:\n\n"
-                f"**1.** Dodanie słówka:\n\t`{BOT_PREFIX}bingo add <tekst...>`\n\n"
-                f"**2.** Usunięcie słówka:\n\t`{BOT_PREFIX}bingo del <zbliżony_tekst...>`\n\n"
-                "Dodanie lub usunięcie słówka rozpocznie głosowanie.\n\n"
-                f"**3.** Wygenerowanie bingo dowolnych rozmiarów:\n\t`{BOT_PREFIX}bingo new --<kolumny>x<wiersze>`\n(domyślnie 4x4)\n\n"
-                "**4.** Cofnięcie zaznaczenia należy\n\tpotwierdzić dopisując: `--u`\n\n"
-                f"**5.** Komenda `{BOT_PREFIX}bingo` zadziała niezależnie od capslocka\n\n"
-                f"**6.** Obecne powiedzonka dostępne pod komendą:\n\t`{BOT_PREFIX}bingo phrases`\n\n"
-                f"**7.** [Tylko Admini] Możliwość załadowania wcześniejszego bingo:\n\t`{BOT_PREFIX}bingo load <message_id>`"
-            ),
+            name='PODGLĄD OBECNYCH POWIEDZONEK:',
+            value=f'**{BOT_PREFIX}bingo phrases**',
+            inline=False,
+        ).add_field(
+            name='ROZPOCZĘCIE GŁOSOWANIA O DODANIE SŁÓWKA:',
+            value=f'**{BOT_PREFIX}bingo add <słówko...>**',
+            inline=False,
+        ).add_field(
+            name='ROZPOCZĘCIE GŁOSOWANIA O USUNIĘCIE SŁÓWKA:',
+            value=f'**{BOT_PREFIX}bingo del <zbliżone_słówko...>**',
             inline=False,
         ).set_footer(
-            text='Uwagi lub propozycje powiedzonek proszę przesyłać do Wiktor J lub Krzysztof K'
+            text='Uwagi proszę kierować do Wiktor J lub Krzysztof K'
         )
+
+        if isinstance(ctx_or_channel, commands.Context):
+            await asyncio.gather(
+                ctx_or_channel.message.delete(),
+                ctx_or_channel.send(embed=embed),
+            )
+        else:
+            await ctx_or_channel.send(embed=embed)
+
+    async def _show_info(self, ctx: commands.Context) -> None:
+        embed = updates_embed()
 
         await asyncio.gather(
             ctx.message.delete(),
@@ -681,8 +774,8 @@ class BingoRPiSCog(commands.Cog):
 
         if os.path.exists(_TABLE_PNG_PATH):
             modified_timestamp = os.path.getmtime(_TABLE_PNG_PATH)
-            modified_time = dt.datetime.fromtimestamp(modified_timestamp)
-            if modified_time + dt.timedelta(minutes=15) > dt.datetime.now():
+            modified_time = dt.fromtimestamp(modified_timestamp)
+            if modified_time + td(minutes=15) > dt.now():
                 if '--force' not in map(str.lower, args):
                     return await ctx.reply(
                         'Ostatnie bingo było używane mniej niż 15 min temu.\n'
@@ -695,10 +788,15 @@ class BingoRPiSCog(commands.Cog):
         self.__generating_bingo = True
 
         try:
-            with open('bingo_msg_history.txt', 'r') as f:
-                old_msg_ids = f.readlines()
-            with open('bingo_msg_history.txt', 'w') as f:
-                f.write('')
+            with open(_BINGO_MSG_HISTORY_PATH, 'r') as f:
+                data: dict[str, list[int]] = json.load(f)
+
+            old_msg_ids = data.get(str(ctx.channel.id)) or list()
+            data[str(ctx.channel.id)] = list()
+
+            with open(_BINGO_MSG_HISTORY_PATH, 'w') as f:
+                json.dump(data, f, ensure_ascii=True, indent=4)
+
         except Exception as e:
             old_msg_ids = []
             Console.error(
