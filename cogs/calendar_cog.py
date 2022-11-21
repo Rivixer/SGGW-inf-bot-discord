@@ -15,7 +15,7 @@ from utils.message import MainMessageUtils
 from utils.settings import settings, update_settings
 from utils.console import Console, FontColour
 from utils.update_embed import UpdateEmbed
-from main import BOT_PREFIX
+from sggw_bot import BOT_PREFIX
 
 _event = collections.namedtuple('Event', ['date', 'time', 'text'])
 _event_time = collections.namedtuple('EventTime', ['time', 'text'])
@@ -173,6 +173,18 @@ class CalendarCog(commands.Cog):
                 f'{event.date} {event.time}, {event.text}'
             )
 
+    @staticmethod
+    def weekday(date: datetime) -> str:
+        return {
+            6: "niedziela",
+            0: "poniedziałek",
+            1: "wtorek",
+            2: "środa",
+            3: "czwartek",
+            4: "piątek",
+            5: "sobota",
+        }.get(date.weekday())
+
     def generate_embed(self, *, preview: bool = False) -> Embed:
         embed = Embed(
             title='Kalendarz',
@@ -201,7 +213,7 @@ class CalendarCog(commands.Cog):
         for event_date, events in sorted_events.items():
             events_sorted = sorted(events, key=lambda i: i.time)
             embed.add_field(
-                name=f"{event_date.strftime('%d.%m.%Y')}:",
+                name=f"{event_date.strftime('%d.%m.%Y')} ({self.weekday(event_date)}):",
                 value='\n'.join(
                     convert_event_time_to_str(i)
                     for i in events_sorted

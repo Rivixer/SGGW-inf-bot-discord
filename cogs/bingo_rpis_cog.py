@@ -26,7 +26,7 @@ import nextcord
 from utils.checks import is_channel
 from utils.settings import settings
 from utils.console import Console
-from main import BOT_PREFIX
+from sggw_bot import BOT_PREFIX
 
 
 _TABLE_PNG_PATH = 'bingo.png'
@@ -855,7 +855,7 @@ class BingoRPiSCog(commands.Cog):
             user_reaction('👎'),
         )
 
-        if len(positive) - len(negative) < 1:
+        if len(positive) - len(negative) < 10:
             return
 
         if payload.message_id in self.__adding_or_deleting:
