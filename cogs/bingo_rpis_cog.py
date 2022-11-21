@@ -1,9 +1,10 @@
 from matplotlib.table import Table as tbl
+from datetime import timedelta as td
+from datetime import datetime as dt
 from difflib import SequenceMatcher
 from matplotlib.table import Cell
 import matplotlib.pyplot as plt
 from typing import ClassVar
-import datetime as dt
 import PIL.Image
 import textwrap
 import asyncio
@@ -15,19 +16,23 @@ import os
 import re
 
 from nextcord.raw_models import RawReactionActionEvent
+from nextcord.permissions import PermissionOverwrite
 from nextcord.mentions import AllowedMentions
+from nextcord.ext import commands, tasks
+from nextcord.channel import TextChannel
 from nextcord.enums import MessageType
 from nextcord.message import Message
 from nextcord.colour import Colour
 from nextcord.member import Member
 from nextcord.embeds import Embed
-from nextcord.ext import commands
 import nextcord
 
-from bingo.updates_embed import updates_embed
+from utils.console import Console, FontColour
+from utils.wait_time import time_to_midnight
 from utils.checks import is_channel
 from utils.settings import settings
-from utils.console import Console
+
+from bingo.updates_embed import updates_embed
 from sggw_bot import BOT_PREFIX
 
 
@@ -197,10 +202,76 @@ class BingoRPiSCog(commands.Cog):
         self.__generating_bingo = False
         self.__changing_bingo = False
         self.__adding_or_deleting = list()
+        self.__send_commands_at_midnight.start()
         self.__available_args = (
             '--force',
             '--u',
             '--s'
+        )
+
+    @tasks.loop(count=1)
+    async def __send_commands_at_midnight(self) -> None:
+        await self.__bot.wait_until_ready()
+
+        while True:
+            wait_time = time_to_midnight() + 5
+            await asyncio.sleep(wait_time)
+            self.__adding_or_deleting = list()
+
+            modified_timestamp = os.path.getmtime(_TABLE_PICKLE_PATH)
+            modified_time = dt.fromtimestamp(modified_timestamp)
+            yesterday = dt.now() - td(days=1)
+
+            if modified_time.date() != yesterday.date():
+                continue
+
+            channel_id: int = settings.get('RPIS_CHANNEL_ID')
+            try:
+                channel = await self.__bot.fetch_channel(channel_id)
+            except Exception as e:
+                return Console.important_error(
+                    'Bingo channel not found. Bingo loop stopped.', e
+                )
+
+            if channel.overwrites_for(self.__bot.user).view_channel is not True:
+                return Console.error(
+                    'Brak permisji do wysłania komend na bingo potajemnie. '
+                    'Zatrzymano pętle.'
+                )
+
+            await channel.set_permissions(
+                channel.guild.default_role,
+                overwrite=PermissionOverwrite(
+                    view_channel=False
+                )
+            )
+            Console.specific(
+                'Usunięto everyone z kanału.', 'BINGO',
+                colour=FontColour.PINK
+            )
+            await self._show_commands(channel)
+            Console.specific(
+                'Wysłano embed z komendami.', 'BINGO',
+                colour=FontColour.PINK
+            )
+            await channel.set_permissions(
+                channel.guild.default_role,
+                overwrite=PermissionOverwrite(
+                    view_channel=True
+                )
+            )
+            Console.specific(
+                'Przywrócono everyone do kanału.', 'BINGO',
+                colour=FontColour.PINK
+            )
+
+    async def __reset_loop(self, ctx: commands.Context) -> None:
+        await ctx.message.delete()
+        self.__send_commands_at_midnight.stop()
+        self.__send_commands_at_midnight.start()
+        Console.specific(
+            'Zresetowano pętlę z komendami w embedzie',
+            'BINGO', colour=FontColour.PINK, bold_type=True
         )
 
     def __add_msg_id_to_history(self, msg: nextcord.Message) -> None:
@@ -443,7 +514,7 @@ class BingoRPiSCog(commands.Cog):
                 case 'DEL':
                     return await self._del_phrase(ctx, ' '.join(args))
 
-            if field.upper() in ('BAN', 'UNBAN', 'INFO', 'LOAD', 'COMMANDS'):
+            if field.upper() in ('BAN', 'UNBAN', 'INFO', 'LOAD', 'COMMANDS', 'RESET_LOOP'):
                 admin_role = ctx.guild.get_role(settings.get("ADMIN_ROLE_ID"))
                 if admin_role in ctx.author.roles:
                     match field.upper():
@@ -456,7 +527,9 @@ class BingoRPiSCog(commands.Cog):
                         case 'LOAD':
                             return await self._load_pickle(ctx, *args)
                         case 'COMMANDS':
-                            return await self._show_commands(ctx, *args)
+                            return await self._show_commands(ctx)
+                        case 'RESET_LOOP':
+                            return await self.__reset_loop(ctx)
                 return await ctx.reply(
                     f'Tylko {admin_role.mention} może używać tej funkcji!',
                     allowed_mentions=AllowedMentions.none(),
@@ -528,6 +601,11 @@ class BingoRPiSCog(commands.Cog):
                 cell.set_facecolor(_Table.UNCHECKED_COLOUR)
                 action_done = 'Odznaczono'
             elif current_facecolor == _Table.UNCHECKED_COLOUR:
+                if '--u' in map(str.lower, args):
+                    self.__changing_bingo = False
+                    return await ctx.reply(
+                        'To pole nie jest zaznaczone, `--u` używa się do odznaczania.'
+                    )
                 cell.set_facecolor(_Table.CHECKED_COLOUR)
                 action_done = 'Zaznaczono'
 
@@ -601,7 +679,8 @@ class BingoRPiSCog(commands.Cog):
 
         embed = Embed(
             title='**OBECNE POWIEDZONKA:**',
-            description=description
+            description=description,
+            colour=Colour.gold()
         )
 
         await ctx.reply(embed=embed)
@@ -626,7 +705,9 @@ class BingoRPiSCog(commands.Cog):
         )
         self.__update_pickle_file(msg)
 
-    async def _show_commands(self, ctx: commands.Context) -> None:
+    async def _show_commands(self, ctx_or_channel: TextChannel | commands.Context) -> None:
+        """If ctx was sent, the trigger message will be deleted."""
+
         embed = Embed(
             title='BINGO RPIS KOMENDY',
             colour=Colour.green()
@@ -646,20 +727,23 @@ class BingoRPiSCog(commands.Cog):
             inline=False,
         ).add_field(
             name='ROZPOCZĘCIE GŁOSOWANIA O DODANIE SŁÓWKA:',
-            value=f'**{BOT_PREFIX}bingo add <tekst...>**',
+            value=f'**{BOT_PREFIX}bingo add <słówko...>**',
             inline=False,
         ).add_field(
             name='ROZPOCZĘCIE GŁOSOWANIA O USUNIĘCIE SŁÓWKA:',
-            value=f'**{BOT_PREFIX}bingo del <zbliżony_tekst...>**',
+            value=f'**{BOT_PREFIX}bingo del <zbliżone_słówko...>**',
             inline=False,
         ).set_footer(
             text='Uwagi proszę kierować do Wiktor J lub Krzysztof K'
         )
 
-        await asyncio.gather(
-            ctx.message.delete(),
-            ctx.send(embed=embed),
-        )
+        if isinstance(ctx_or_channel, commands.Context):
+            await asyncio.gather(
+                ctx_or_channel.message.delete(),
+                ctx_or_channel.send(embed=embed),
+            )
+        else:
+            await ctx_or_channel.send(embed=embed)
 
     async def _show_info(self, ctx: commands.Context) -> None:
         embed = updates_embed()
@@ -690,8 +774,8 @@ class BingoRPiSCog(commands.Cog):
 
         if os.path.exists(_TABLE_PNG_PATH):
             modified_timestamp = os.path.getmtime(_TABLE_PNG_PATH)
-            modified_time = dt.datetime.fromtimestamp(modified_timestamp)
-            if modified_time + dt.timedelta(minutes=15) > dt.datetime.now():
+            modified_time = dt.fromtimestamp(modified_timestamp)
+            if modified_time + td(minutes=15) > dt.now():
                 if '--force' not in map(str.lower, args):
                     return await ctx.reply(
                         'Ostatnie bingo było używane mniej niż 15 min temu.\n'
