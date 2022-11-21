@@ -42,7 +42,7 @@ _BINGO_PHRASES_PATH = 'bingo/bingo.txt'
 _PICKLES_FOLDER = 'bingo/pickles/'
 _BINGO_WIN_GIF_PATH = 'bingo/bingo_win.gif'
 _BINGO_MSG_HISTORY_PATH = 'bingo/bingo_msg_history.json'
-_FIREWORKS_RAW_FOLDER = 'bingo-fireworks-gif-raw/'
+_FIREWORKS_RAW_FOLDER = 'bingo/bingo-fireworks-gif-raw/'
 
 
 class _Table:
