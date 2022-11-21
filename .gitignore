@@ -129,11 +129,12 @@ dmypy.json
 .pyre/
 
 *.png
-bingo_msg_history.txt
 settings.json
 status.txt
 *.pickle
 logs/
 files/
 old_files/
-bingo_win.gif
+bingo/bingo_win.gif
+bingo/bingo.txt
+bingo/bingo_msg_history.json
