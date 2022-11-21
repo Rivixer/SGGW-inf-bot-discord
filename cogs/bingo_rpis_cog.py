@@ -671,6 +671,13 @@ class BingoRPiSCog(commands.Cog):
         with open(_BINGO_PHRASES_PATH, 'r', encoding='utf-8') as f:
             phrases = f.readlines()
 
+        phrases = map(
+            lambda i: i if len(
+                ii := i.split('--')
+            ) == 1 else ii[0] + '\n',
+            phrases
+        )
+
         phrases = map(lambda i: i.replace('*', '\\*'), phrases)
 
         description = ''.join(
