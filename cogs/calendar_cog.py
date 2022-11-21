@@ -11,10 +11,11 @@ from nextcord.embeds import Embed
 import nextcord
 
 from utils.checks import has_admin_role, is_bot_channel
-from utils.message import MainMessageUtils
 from utils.settings import settings, update_settings
 from utils.console import Console, FontColour
+from utils.wait_time import time_to_midnight
 from utils.update_embed import UpdateEmbed
+from utils.message import MainMessageUtils
 from sggw_bot import BOT_PREFIX
 
 _event = collections.namedtuple('Event', ['date', 'time', 'text'])
@@ -49,14 +50,14 @@ class CalendarCog(commands.Cog):
                 channel = await self.__bot.fetch_channel(channel_id)
             except Exception as e:
                 return Console.important_error(
-                    'Info channel not found. Loop stopped.', e
+                    'Info channel not found. Calendar loop stopped.', e
                 )
 
             try:
                 message = await channel.fetch_message(msg_id)
             except Exception as e:
                 return Console.important_error(
-                    'Message not found. Loop stopped.', e
+                    'Message not found. Calendar loop stopped.', e
                 )
 
             today = datetime.now()
@@ -88,19 +89,8 @@ class CalendarCog(commands.Cog):
                 remove_from_calendar(preview=False)
             )
 
-            tomorrow = today + timedelta(days=1)
-            midnight = datetime(
-                year=tomorrow.year,
-                month=tomorrow.month,
-                day=tomorrow.day,
-                hour=0,
-                minute=0,
-                second=0,
-                microsecond=0
-            )
-
-            time_to_midnight = midnight - today
-            await asyncio.sleep(time_to_midnight.seconds)
+            wait_time = time_to_midnight()
+            await asyncio.sleep(wait_time)
 
     def __load_calendar_from_json(self, *, preview: bool = False) -> dict[str, _event]:
         with open(f'files{"/preview" if preview else ""}/calendar.json', encoding='utf-8') as f:
