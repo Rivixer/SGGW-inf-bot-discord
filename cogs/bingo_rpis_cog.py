@@ -863,6 +863,11 @@ class BingoRPiSCog(commands.Cog):
         else:
             force = False
 
+        if text.find('--') >= 0:
+            return await ctx.reply(
+                'Wybacz, ale słówko nie może zawierać dwóch myślników obok siebie.'
+            )
+
         matches = self.__get_phrases_ratio(text)
         if not force and max(matches.values()) >= 0.75:
             similar: list[str] = []
@@ -873,7 +878,7 @@ class BingoRPiSCog(commands.Cog):
             return await ctx.reply(
                 'Podobne powiedzonka już istnieją:\n**'
                 + ''.join(similar).replace('*', '\\*') +
-                '**Jeśli chcesz dodać swoje, napisz komendę jeszcze raz, dopsiując `--a` na końcu.'
+                '\n**Jeśli chcesz dodać swoje, napisz komendę jeszcze raz, dopsiując `--a` na końcu.'
             )
 
         text = text.replace("*", "\\*")
