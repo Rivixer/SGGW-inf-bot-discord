@@ -32,7 +32,7 @@ class _TableController:
 
     def __getitem__(self, value: tuple[str, int]) -> Cell:
         if not isinstance(value, tuple):
-            raise TypeError('indexes must be tuple or str')
+            raise TypeError('indexes must be tuple')
         if len(value) != 2:
             raise ValueError('indexes must have tuple with 2 values')
         if not isinstance(value[0], str) or len(value[0]) != 1:
@@ -148,7 +148,7 @@ class BingoTableController:
 
         Returns
         -------
-        `bool` False if bingo was used less than 15 minutes ago , otherwise True.
+        `bool` False if bingo was used less than 15 minutes ago, otherwise True.
         """
 
         try:
@@ -199,7 +199,7 @@ class BingoTableController:
     def mark_phrase(self, field: str) -> None:
         """Mark phrase in bingo.
 
-        Set last_action that a field has been unmarked.
+        Set last_action that a field has been marked.
 
         Parameters
         ----------
