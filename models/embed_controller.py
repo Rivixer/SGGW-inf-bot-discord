@@ -75,7 +75,7 @@ class EmbedController(ABC):
             await reply.delete()
 
     @staticmethod
-    def _with_update(reply_content: str):
+    def _with_update(reply_content: str, *, reload_settings: bool = False):
         """A decorator that first replies to the interaction that the function will be executed.
 
         Next executes the function.
@@ -91,6 +91,13 @@ class EmbedController(ABC):
         and other arguments must be keywords.
 
         reply_content will be formatted using str.format(**kwargs).
+
+        Parameters
+        ----------
+        reply_content: `str`
+            The content of the interaction response during the update.
+        reload_settings: `bool`
+            If True, reload the settings in the model before executing the function.
         """
 
         def decorator(func: Callable[..., Coroutine[Any, Any, None]]):
@@ -100,6 +107,8 @@ class EmbedController(ABC):
                 )
 
                 try:
+                    if reload_settings:
+                        self._model.reload_from_settings()
                     await func(self, interaction, *args, **kwargs)
                     embed = self._embed_model.generate_embed()
                     guild = interaction.guild
@@ -120,7 +129,7 @@ class EmbedController(ABC):
             return wrapper
         return decorator
 
-    @_with_update('Aktualizowanie embed...')
+    @_with_update('Aktualizowanie embed...', reload_settings=True)
     async def update(self, interaction: Interaction) -> None:
         pass
 
