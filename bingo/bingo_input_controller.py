@@ -4,8 +4,6 @@ import re
 from nextcord.ext import commands
 from nextcord.message import Message
 
-from sggw_bot import BOT_PREFIX
-
 from .bingo_table_controller import BingoTableController
 from .bingo_settings import BingoSettings
 from .bingo_table_exceptions import *
@@ -36,7 +34,7 @@ class BingoInputController:
 
         await ctx.message.reply(
             f'Aby ułatwić pisanie komend, '
-            f'usunęliśmy przedrostek `{BOT_PREFIX}bingo`.\n'
+            f'usunęliśmy przedrostek `{ctx.prefix}bingo`.\n'
             f'Napisz po prostu: `{arg}`'
         )
 

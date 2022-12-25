@@ -4,14 +4,23 @@ from abc import ABC
 import json
 import re
 
+from nextcord.ext import commands
+
+from sggw_bot import SGGWBot
+
 
 class Model(ABC):
 
     __slots__ = (
         '__data',
+        '_bot'
     )
 
     __data: dict[str, Any]
+    _bot: SGGWBot
+
+    def __init__(self, bot: SGGWBot) -> None:
+        self._bot = bot
 
     @property
     def _settings_path(self) -> Path:
@@ -30,10 +39,16 @@ class Model(ABC):
         """Returns data loaded from settings.json"""
         return self.__data
 
-    def _load_from_settings(self) -> dict[str, Any]:
+    @property
+    def bot(self) -> SGGWBot:
+        return self._bot
+
+    def _load_from_settings(self, *, create_if_not_exists: bool = True) -> dict[str, Any]:
         """Loads data from <...>_settings.json in a class dictionary.
 
         Sets __data loaded from the file.
+
+        If create_if_not_exists is True, creates file if it doesn't exist.
 
         Returns
         -------
@@ -52,10 +67,10 @@ class Model(ABC):
 
         return self.__data
 
-    def update_json(self, key: str, value: Any) -> None:
+    def update_json(self, key: str, value: Any, *, force: bool = False) -> None:
         """Updates json.
 
-        If the key doesn't exist in the file, raise an error.
+        If the key doesn't exist in the file and `force` is False, raise an error.
 
         Raises
         ------
@@ -65,7 +80,7 @@ class Model(ABC):
             Invaild key.
         """
 
-        if key not in self.__data.keys():
+        if not force and key not in self.__data.keys():
             raise KeyError(
                 f'Invalid key ({key}) when updating {self._settings_path}.'
             )

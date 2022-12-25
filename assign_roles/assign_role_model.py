@@ -3,6 +3,7 @@ from typing import Any
 
 from utils.console import Console
 from models.model import Model
+from sggw_bot import SGGWBot
 
 
 @dataclass(slots=True)
@@ -24,7 +25,8 @@ class AssignRoleModel(Model):
     __other_roles: list[_Group]
     __max_groups: int
 
-    def __init__(self) -> None:
+    def __init__(self, bot: SGGWBot) -> None:
+        super().__init__(bot)
         data = super()._load_from_settings()
 
         self.max_groups = data.get('max_groups')

@@ -5,6 +5,8 @@ from nextcord.channel import TextChannel
 from nextcord.ext import commands
 import nextcord
 
+from sggw_bot import SGGWBot
+
 from .assign_role_controller import AssignRoleController
 
 
@@ -15,12 +17,12 @@ class AssignRoleCog(commands.Cog):
         '__ctrl'
     )
 
-    __bot: commands.Bot
+    __bot: SGGWBot
     __ctrl: AssignRoleController
 
-    def __init__(self, bot: commands.Bot) -> None:
+    def __init__(self, bot: SGGWBot) -> None:
         self.__bot = bot
-        self.__ctrl = AssignRoleController()
+        self.__ctrl = AssignRoleController(bot)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: RawReactionActionEvent) -> None:
@@ -88,5 +90,5 @@ class AssignRoleCog(commands.Cog):
         await self.__ctrl.update_max_groups(interaction, amount=amount)
 
 
-def setup(bot: commands.Bot):
+def setup(bot: SGGWBot):
     bot.add_cog(AssignRoleCog(bot))

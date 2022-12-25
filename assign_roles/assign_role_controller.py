@@ -6,6 +6,7 @@ from nextcord.role import Role
 
 from models.embed_controller import EmbedController
 from models.controller import Controller
+from sggw_bot import SGGWBot
 
 from .assign_role_model import AssignRoleModel
 from .assign_role_embed import AssignRoleEmbed
@@ -16,8 +17,8 @@ class AssignRoleController(Controller, EmbedController):
     _model: AssignRoleModel
     _embed_model: AssignRoleEmbed
 
-    def __init__(self) -> None:
-        model = AssignRoleModel()
+    def __init__(self, bot: SGGWBot) -> None:
+        model = AssignRoleModel(bot)
         embed_model = AssignRoleEmbed(model)
 
         Controller.__init__(self, model)
