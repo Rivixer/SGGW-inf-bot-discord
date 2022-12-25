@@ -43,7 +43,7 @@ class Model(ABC):
     def bot(self) -> SGGWBot:
         return self._bot
 
-    def _load_from_settings(self, *, create_if_not_exists: bool = True) -> dict[str, Any]:
+    def _load_settings(self, *, create_if_not_exists: bool = True) -> dict[str, Any]:
         """Loads data from <...>_settings.json in a class dictionary.
 
         Sets __data loaded from the file.
@@ -58,8 +58,30 @@ class Model(ABC):
         ------
         OSError
             Cannot open json file.
-        TypeError
-            message_id in json file is invaild.
+        """
+
+        if create_if_not_exists and not self._settings_path.exists():
+            with open(self._settings_path, 'w') as f:
+                f.write('{}')
+
+        with open(self._settings_path, encoding='utf-8') as f:
+            self.__data = json.load(f)
+
+        return self.__data
+
+    def reload_settings(self) -> dict[str, Any]:
+        """Reload data from <...>_settings.json in a class dictionary.
+
+        Sets __data loaded from the file.
+
+        Returns
+        -------
+        data: `dict[str, Any]` - Dictionary loaded from json file.
+
+        Raises
+        ------
+        OSError
+            Cannot open json file.
         """
 
         with open(self._settings_path, encoding='utf-8') as f:

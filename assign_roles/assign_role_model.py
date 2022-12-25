@@ -27,7 +27,7 @@ class AssignRoleModel(Model):
 
     def __init__(self, bot: SGGWBot) -> None:
         super().__init__(bot)
-        data = super()._load_from_settings()
+        data = super()._load_settings()
 
         self.max_groups = data.get('max_groups')
         self.__group_roles = list()

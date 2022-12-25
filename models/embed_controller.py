@@ -108,7 +108,7 @@ class EmbedController(ABC):
 
                 try:
                     if reload_settings:
-                        self._model.reload_from_settings()
+                        self._model.reload_settings()
                     await func(self, interaction, *args, **kwargs)
                     embed = self._embed_model.generate_embed()
                     guild = interaction.guild
