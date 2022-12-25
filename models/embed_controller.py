@@ -59,7 +59,7 @@ class EmbedController(ABC):
         async def delete_msg():
             try:
                 await msg.delete()
-            except UnboundLocalError:
+            except NameError:
                 pass
 
         try:
