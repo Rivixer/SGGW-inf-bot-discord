@@ -154,7 +154,10 @@ class EmbedController(ABC):
         )
 
     def __update_data(self, msg: Message) -> None:
-        """Updates message data in settings.json"""
+        """Updates message data in settings.json
+
+        If file not exists, creates it with 'message' key.
+        """
 
         msg_data = {
             'id': msg.id,
@@ -162,7 +165,7 @@ class EmbedController(ABC):
             'guild_id': (msg.guild.id if msg.guild else 0)
         }
 
-        self._model.update_json('message', msg_data)
+        self._model.update_json('message', msg_data, force=True)
 
     async def __get_message(self, guild: Guild) -> Message:
         """|coro|
