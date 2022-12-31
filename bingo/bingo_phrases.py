@@ -9,6 +9,7 @@ import random
 import json
 
 from .bingo_utils import BingoUtils
+from .bingo_settings import BingoSettings
 
 
 class _PhrasePriority(Enum):
@@ -23,6 +24,7 @@ class _Phrase:
     __text: str
     __default_checked: bool
     __priority: _PhrasePriority
+    __default_position: dict[str, int] | None
     __checked: bool = field(init=False, default=False)
 
     @property
@@ -36,6 +38,10 @@ class _Phrase:
     @property
     def default_checked(self) -> bool:
         return self.__default_checked
+
+    @property
+    def default_position(self) -> dict[str, int]:
+        return self.__default_position or {}
 
     @property
     def priority(self) -> _PhrasePriority:
@@ -85,29 +91,41 @@ class BingoPhrases:
             default_checked = value.get('default_checked') or False
             priority_name: str = value.get('priority') or "medium"
             priority = _PhrasePriority[priority_name.upper()]
+            default_pos = value.get('position')
 
             self.__phrases.append(
-                _Phrase(name, default_checked, priority)
+                _Phrase(name, default_checked, priority, default_pos)
             )
 
-    def shuffle(self, *, item_count: int | None = None) -> None:
+    def shuffle(self, settings: BingoSettings) -> None:
         """Suffle the phrases.
 
-        If item_count is specified reject phrases with the lowest priority.
+        Reject phrases with the lowest priority.
 
-        Raises
-        ------
-        TypeError
-            item_count is not integer
-        ValueError
-            item_count is lower than 1 or too large
+        Put positional phrases where they belong.
         """
 
-        if item_count is not None:
-            self.__phrases.sort(key=lambda i: i.priority.value)
-            self.__phrases = self.__phrases[:item_count]
+        prio_phrases: dict[_PhrasePriority, list[_Phrase]] = dict()
+        for phrase in self.__phrases:
+            try:
+                prio_phrases[phrase.priority].append(phrase)
+            except KeyError:
+                prio_phrases[phrase.priority] = [phrase]
 
+        phrases = self.__phrases
+
+        phrases = prio_phrases[_PhrasePriority.HIGH]
+        phrases.extend(prio_phrases[_PhrasePriority.MEDIUM])
+        phrases.extend(prio_phrases[_PhrasePriority.LOW])
+        self.__phrases = phrases = self.__phrases[:settings.no_of_cells]
         random.shuffle(self.__phrases)
+
+        # Set phrases with a specific position
+        for i in range(len(phrases)):
+            if (def_pos := phrases[i].default_position.get(
+                f'{settings.dim_cols}x{settings.dim_rows}'
+            )) is not None:
+                phrases[i], phrases[def_pos] = phrases[def_pos], phrases[i]
 
     @property
     def phrases(self) -> list[_Phrase]:

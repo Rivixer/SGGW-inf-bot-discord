@@ -78,7 +78,7 @@ class BingoInputController:
                 'Jeśli mimo to chcesz wygenerować nowe, napisz `new+`'
             )
 
-        self.__table_ctrl.new()
+        self.__table_ctrl = self.__table_ctrl.new(settings=self.__settings)
         self.__table_ctrl.generate()
         await self.reply_png(message)
 

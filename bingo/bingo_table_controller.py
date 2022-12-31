@@ -269,7 +269,7 @@ class BingoTableController:
 
         self.__phrases = BingoPhrases()
         self.__phrases.load(self.__settings.dir_path)
-        self.__phrases.shuffle(item_count=self.__settings.no_of_cells)
+        self.__phrases.shuffle(self.__settings)
 
         table = BingoTableGenerator.generate(
             self.__settings, self.__phrases
