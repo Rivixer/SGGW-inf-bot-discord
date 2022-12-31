@@ -140,7 +140,7 @@ class CalendarCog(commands.Cog):
                     msg = 'Pętla jest już zastopowana'
                 else:
                     self._remove_deprecated_events.cancel()
-                    msg = 'Zastopopwano'
+                    msg = 'Zastopowano'
             case 'status':
                 if self._remove_deprecated_events.is_running():
                     msg = 'Działa'
