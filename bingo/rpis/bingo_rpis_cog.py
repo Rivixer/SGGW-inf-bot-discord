@@ -10,8 +10,8 @@ _SETTINGS = BingoSettings(
     cell_colour_checked='#999999',
     index_colour='#696969',
     index_colour_checked='#A0A000',
-    dim_cols=4,
-    dim_rows=4
+    dim_cols=5,
+    dim_rows=5
 )
 
 
