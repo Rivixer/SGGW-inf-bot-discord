@@ -1,10 +1,10 @@
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from abc import ABC
+import shutil
 import json
 import re
-
-from nextcord.ext import commands
 
 from sggw_bot import SGGWBot
 
@@ -94,6 +94,9 @@ class Model(ABC):
 
         If the key doesn't exist in the file and `force` is False, raise an error.
 
+        Moves the old json file to `old_settings/`.
+        If the folder does not exist, creates it.
+
         Raises
         ------
         OSError
@@ -106,6 +109,16 @@ class Model(ABC):
             raise KeyError(
                 f'Invalid key ({key}) when updating {self._settings_path}.'
             )
+
+        old_folder = Path('old_settings/')
+        if not old_folder.exists():
+            old_folder.mkdir()
+
+        now = datetime.now().strftime('%d%m%Y-%H%M%S')
+        shutil.copy(
+            self._settings_path,
+            old_folder / f'{self.__class__.__name__}-{now}'
+        )
 
         self.__data[key] = value
         with open(self._settings_path, 'w', encoding='utf-8') as f:
