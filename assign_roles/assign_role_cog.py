@@ -1,3 +1,5 @@
+import os
+
 from nextcord.raw_models import RawReactionActionEvent
 from nextcord.application_command import SlashOption
 from nextcord.interactions import Interaction
@@ -88,6 +90,44 @@ class AssignRoleCog(commands.Cog):
         )
     ) -> None:
         await self.__ctrl.update_max_groups(interaction, amount=amount)
+
+    @_roles.subcommand(name='change_thumbnail', description='Change thumbnail')
+    async def _change_thumbnail(
+        self,
+        interaction: Interaction,
+        url: str = SlashOption(
+            description='Url to emoji (prefered page: \'emoji.gg\'',
+            required=True
+        )
+    ) -> None:
+        await self.__ctrl.change_thumbnail(interaction, url)
+
+    @_roles.subcommand(name='get_json', description='Get json with embed fields')
+    async def _get_fields(self, interaction: Interaction) -> None:
+        try:
+            file = self.__ctrl.get_fields_from_json('roles')
+        except OSError as e:
+            await interaction.response.send_message(
+                f'Nie udało się pobrać jsona - {e}', ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(file=file, ephemeral=True)
+        finally:
+            try:
+                os.remove('roles_fields_temp.json')
+            except:
+                pass
+
+    @_roles.subcommand(name='set_json', description='Set json with embed fields')
+    async def _set_fields(
+            self,
+            interaction: Interaction,
+            file: nextcord.Attachment = SlashOption(
+                description='JSON file with fields, '
+                'downloaded from `/roles get_json` and updated'
+            )
+    ) -> None:
+        await self.__ctrl.set_fields_from_json(interaction, file, 'roles')
 
 
 def setup(bot: SGGWBot):
