@@ -27,17 +27,19 @@ class AssignRoleModel(Model):
 
     def __init__(self, bot: SGGWBot) -> None:
         super().__init__(bot)
-        data = super()._load_settings()
+        super()._load_settings()
+        self.__load_roles()
 
-        self.max_groups = data.get('max_groups')
+    def __load_roles(self):
+        self.max_groups = self.data.get('max_groups')
         self.__group_roles = list()
         self.__other_roles = list()
 
         for i in range(self.__max_groups):
-            group = self.__load_role(data, f'group_{i+1}')
+            group = self.__load_role(self.data, f'group_{i+1}')
             self.__group_roles.append(group)
 
-        guest_role = self.__load_role(data, 'guest')
+        guest_role = self.__load_role(self.data, 'guest')
         self.__other_roles.append(guest_role)
 
     def __load_role(self, data: dict[str, Any], key: str) -> _Group:
@@ -49,6 +51,11 @@ class AssignRoleModel(Model):
             raise e
 
         return _Group(**group_data)
+
+    def reload_settings(self) -> dict[str, Any]:
+        super().reload_settings()
+        self.__load_roles()
+        return self.data
 
     @staticmethod
     def __validate_max_groups(max_groups) -> None:

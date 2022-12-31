@@ -109,4 +109,4 @@ class Model(ABC):
 
         self.__data[key] = value
         with open(self._settings_path, 'w', encoding='utf-8') as f:
-            json.dump(self.__data, f, ensure_ascii=True, indent=4)
+            json.dump(self.__data, f, ensure_ascii=True, indent=4, default=str)

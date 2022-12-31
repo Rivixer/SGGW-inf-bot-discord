@@ -12,17 +12,15 @@ class AssignRoleEmbed(EmbedModel):
     _model: AssignRoleModel
 
     def generate_embed(self) -> Embed:
-        return Embed(
-            title='Przydziel się do swojej grupy labolatoryjnej!',
-            description='Możesz należeć tylko do 1 grupy.',
-            colour=Colour.yellow()
-        ).add_field(
+        embed = super().generate_embed()
+        embed.add_field(
             name='Kliknij niżej odpowiednią reakcję:',
             value='\n'.join(f'{r.emoji} - {r.description}'
                             for r in self._model.roles)
         ).set_footer(
             text='Nie spam! Twoja reakcja zniknie po zmianie grupy.'
         )
+        return embed
 
     @property
     def reactions(self) -> list[Emoji | str]:
