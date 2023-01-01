@@ -112,12 +112,13 @@ class BingoPhrases:
             except KeyError:
                 prio_phrases[phrase.priority] = [phrase]
 
-        phrases = self.__phrases
+        for phrases in prio_phrases.values():
+            random.shuffle(phrases)
 
         phrases = prio_phrases[_PhrasePriority.HIGH]
         phrases.extend(prio_phrases[_PhrasePriority.MEDIUM])
         phrases.extend(prio_phrases[_PhrasePriority.LOW])
-        self.__phrases = phrases = self.__phrases[:settings.no_of_cells]
+        self.__phrases = phrases = phrases[:settings.no_of_cells]
         random.shuffle(self.__phrases)
 
         # Set phrases with a specific position
