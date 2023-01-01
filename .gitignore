@@ -128,13 +128,16 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-*.png
+# Bingo
+phrases.json
+bingo.png
+pickles/
+channel_id.txt
+
 settings.json
+*_settings.json
 status.txt
-*.pickle
 logs/
-files/
+old_settings/
 old_files/
-bingo/bingo_win.gif
-bingo/bingo.txt
-bingo/bingo_msg_history.json
+prototype_json.json
