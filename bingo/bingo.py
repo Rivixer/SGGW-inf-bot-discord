@@ -2,6 +2,7 @@ from nextcord.message import Message
 from nextcord.ext import commands
 
 from utils.checks import has_admin_role
+from utils.console import Console
 
 from .bingo_table_controller import BingoTableController
 from .bingo_input_controller import BingoInputController
@@ -36,7 +37,11 @@ class Bingo(commands.Cog):
             self.__controller = BingoTableController.load(
                 settings.dir_path
             )
-        except OSError:
+        except Exception as e:
+            Console.error(
+                'Nie udało się załadować bingo.',
+                exception=e
+            )
             self.__controller = BingoTableController(settings)
 
         self.__input_ctrl = BingoInputController(

@@ -44,7 +44,7 @@ class BingoInputController:
 
         dim_rows = self.__settings.dim_rows
         col_index = chr(self.__settings.dim_cols + 64)
-        return f'[A-{col_index}a-{col_index.lower()}][1-{dim_rows}]'
+        return f'[A-{col_index}a-{col_index.lower()}]{{1}}[1-{dim_rows}]{{1}}'
 
     async def reply_png(self, message: Message) -> None:
         """|coro|
