@@ -44,24 +44,25 @@ class SGGWBot(commands.Bot):
 
     def __load_settings(self) -> None:
 
-        MODEL = """{
-            "GUILD_ID": int,
-            "PREFIX": str
-        }"""
+        MODEL = {
+            'GUILD_ID': 'int',
+            'PREFIX': 'str',
+            'ADMIN_ROLE_ID': 'int',
+            'BOT_CHANNEL_ID': 'int',
+        }
 
         path = Path('settings.json')
         if not path.exists():
             with open(path, 'w') as f:
-                f.write(MODEL)
+                json.dump(MODEL, f, indent=4)
 
             Console.critical_error(
-                'Error while starting bot.',
-                FileNotFoundError(
-                    """The 'settings.json' file did not exist.
-                    A prototype has been created.
-                    Complete it and start the bot again.
-                    """
-                )
+                'Error while starting bot.'
+                """The 'settings.json' file did not exist.
+                A prototype has been created.
+                Complete it and start the bot again.
+                """,
+                FileNotFoundError()
             )
 
         with open('settings.json', 'r') as f:
@@ -70,15 +71,17 @@ class SGGWBot(commands.Bot):
         guild_id = data.get('GUILD_ID')  # type: ignore
         if not isinstance(guild_id, int):
             Console.critical_error(
-                'Error while starting bot.',
-                ValueError("guild_id in 'settings.json' must be int")
+                'Error while starting bot. '
+                'guild_id in \'settings.json\' must be int',
+                ValueError()
             )
 
         prefix = data.get('PREFIX')
         if not isinstance(prefix, str):
             Console.critical_error(
-                'Error while starting bot.',
-                ValueError("prefix in 'settings.json' must be str")
+                'Error while starting bot. '
+                'prefix in \'settings.json\' must be str',
+                ValueError()
             )
 
         self.__guild_id = guild_id
