@@ -4,6 +4,7 @@ from typing import Any
 from abc import ABC
 import shutil
 import json
+import sys
 import re
 
 from sggw_bot import SGGWBot
@@ -32,6 +33,11 @@ class Model(ABC):
         ).lower() + '_settings'
 
         module = self.__class__.__module__.replace('.', '\\')
+
+        if sys.platform == 'linux':
+            module = '/'.join(module.split('\\')[:-1])
+            return Path(module) / f'{filename}.json'
+
         return Path(module).parent / f'{filename}.json'
 
     @property
