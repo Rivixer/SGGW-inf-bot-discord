@@ -29,7 +29,11 @@ class BingoInputController:
 
         if re.match(self.__is_field_regex, message.content):
             return await self.__mark_phrase(message)
-        if re.match('-' + self.__is_field_regex, message.content):
+        if (
+            len(message.content) > 0
+            and message.content[0] == '-'
+            and re.match(self.__is_field_regex, message.content[1:])
+        ):
             return await self.__unmark_phrase(message)
 
     async def bingo_command(self, ctx: commands.Context, arg: str) -> None:
@@ -50,7 +54,7 @@ class BingoInputController:
 
         dim_rows = self.__settings.dim_rows
         col_index = chr(self.__settings.dim_cols + 64)
-        return f'[A-{col_index}a-{col_index.lower()}]{{1}}[1-{dim_rows}]{{1}}'
+        return f'^[A-{col_index}a-{col_index.lower()}][1-{dim_rows}]$'
 
     async def reply_png(self, message: Message) -> None:
         """|coro|
