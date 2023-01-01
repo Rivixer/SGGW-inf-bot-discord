@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 import re
 
-from nextcord.ext import commands
 from nextcord.message import Message
+from nextcord.ext import commands
 
 from .bingo_table_controller import BingoTableController
 from .bingo_settings import BingoSettings
@@ -16,7 +16,13 @@ class BingoInputController:
     __settings: BingoSettings
 
     async def on_message(self, message: Message) -> None:
-        """|coro|"""
+        """|coro|
+
+        If the message has not been sent in bingo channel, nothing happens.
+        """
+
+        if message.channel.id != self.__settings.channel_id:
+            return
 
         if message.content.lower() in ('new', 'new+'):
             return await self.__new(message)

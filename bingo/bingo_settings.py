@@ -27,7 +27,8 @@ class BingoSettings:
         '__win_colour',
         '__dim_cols',
         '__dim_rows',
-        '__way_to_win'
+        '__way_to_win',
+        '__channel_id'
     )
 
     def __init__(
@@ -88,6 +89,9 @@ class BingoSettings:
             self.__way_to_win = way_to_win
         else:
             TypeError('way_to_win must be WayToWinBingo instance')
+
+        with open(f'bingo/{folder_name}/channel_id.txt', 'r') as f:
+            self.__channel_id = int(f.read())
 
     @staticmethod
     def __validate_colour(name: str, value: str) -> None:
@@ -168,3 +172,7 @@ class BingoSettings:
     @property
     def way_to_win(self) -> WayToWinBingo:
         return self.__way_to_win
+
+    @property
+    def channel_id(self) -> int:
+        return self.__channel_id
