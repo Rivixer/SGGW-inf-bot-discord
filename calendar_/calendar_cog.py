@@ -31,7 +31,7 @@ class CalendarCog(commands.Cog):
         name='calendar',
         description='Embed with events.',
         dm_permission=False,
-        default_member_permissions=131072
+        default_member_permissions=1 << 17  # Mention everyone
     )
     async def _calendar(self, *_) -> None:
         pass

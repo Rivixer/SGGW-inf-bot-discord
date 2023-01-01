@@ -28,7 +28,7 @@ class InformationsCog(commands.Cog):
         name='informations',
         description='Embed with informations.',
         dm_permission=False,
-        default_member_permissions=131072
+        default_member_permissions=1 << 17  # Mention everyone
     )
     async def _informations(self, *_) -> None:
         pass

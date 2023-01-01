@@ -63,7 +63,7 @@ class AssignRoleCog(commands.Cog):
         name='roles',
         description='Embed with lab groups.',
         dm_permission=False,
-        default_member_permissions=131072
+        default_member_permissions=1 << 17  # Mention everyone
     )
     async def _roles(self, *_) -> None:
         pass
