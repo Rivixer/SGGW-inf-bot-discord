@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from matplotlib.table import Table, Cell
+from dataclasses import dataclass, field
 from datetime import timedelta as td
 from datetime import datetime as dt
-from dataclasses import dataclass
 import matplotlib.pyplot as plt
 from typing import Generator
 from pathlib import Path
@@ -13,6 +13,7 @@ import nextcord
 import pickle
 
 from .bingo_table_generator import BingoTableGenerator
+from .bingo_win_controller import BingoWinController
 from .bingo_settings import BingoSettings
 from .bingo_phrases import BingoPhrases
 from .bingo_table_exceptions import *
@@ -25,10 +26,22 @@ class _TableController:
     __table: Table
     __settings: BingoSettings
     __phrases: BingoPhrases
+    __win_ctrl: BingoWinController = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.__win_ctrl = BingoWinController(
+            self.__table,
+            self.__settings,
+            self.__phrases
+        )
 
     @property
     def table(self) -> Table:
         return self.__table
+
+    @property
+    def win_ctrl(self) -> BingoWinController:
+        return self.__win_ctrl
 
     def __getitem__(self, value: tuple[str, int]) -> Cell:
         if not isinstance(value, tuple):
@@ -220,6 +233,11 @@ class BingoTableController:
 
         cell = self._table_ctrl[(field[0], int(field[1]))]
         self._table_ctrl.mark_cell(cell)
+        try:
+            self._table_ctrl.win_ctrl.check_win(field)
+        except Exception as e:
+            from utils.console import Console
+            Console.error('asdf', exception=e)
 
         text = BingoUtils.get_text_from_cell(cell, add_bslsh_bfr_strsk=True)
         self.__last_action = f'Zaznaczono: **{text}**'
@@ -248,6 +266,7 @@ class BingoTableController:
 
         cell = self._table_ctrl[(field[0], int(field[1]))]
         self._table_ctrl.unmark_cell(cell)
+        self._table_ctrl.win_ctrl.uncheck_win(field)
 
         text = BingoUtils.get_text_from_cell(cell, add_bslsh_bfr_strsk=True)
         self.__last_action = f'Odznaczono: **{text}**'

@@ -1,8 +1,20 @@
+from enum import Enum, auto
 from pathlib import Path
 import re
 import os
 
 from utils.console import Console
+
+
+__all__ = (
+    'WayToWinBingo',
+    'BingoSettings'
+)
+
+
+class WayToWinBingo(Enum):
+    ONELINE = auto()
+    # FULL = auto()  # Other time
 
 
 class BingoSettings:
@@ -12,9 +24,10 @@ class BingoSettings:
         '__cell_colour',
         '__cell_colour_checked',
         '__index_colour',
-        '__index_colour_checked',
+        '__win_colour',
         '__dim_cols',
-        '__dim_rows'
+        '__dim_rows',
+        '__way_to_win'
     )
 
     def __init__(
@@ -24,9 +37,10 @@ class BingoSettings:
         cell_colour: str,
         cell_colour_checked: str,
         index_colour: str,
-        index_colour_checked: str,
+        win_colour: str,
         dim_cols: int,
-        dim_rows: int
+        dim_rows: int,
+        way_to_win: WayToWinBingo
     ) -> None:
         """Generating Bingo table settings.
 
@@ -53,7 +67,7 @@ class BingoSettings:
             'cell_colour': cell_colour,
             'cell_colour_checked': cell_colour_checked,
             'index_colour': index_colour,
-            'index_colour_checked': index_colour_checked,
+            'win_colour': win_colour,
         }
 
         for name, value in colour_modules.items():
@@ -69,6 +83,11 @@ class BingoSettings:
         for name, value in dim_modules.items():
             self.__validate_dim(name, value)
             setattr(self, f'_{self.__class__.__name__}__{name}', value)
+
+        if isinstance(way_to_win, WayToWinBingo):
+            self.__way_to_win = way_to_win
+        else:
+            TypeError('way_to_win must be WayToWinBingo instance')
 
     @staticmethod
     def __validate_colour(name: str, value: str) -> None:
@@ -119,8 +138,8 @@ class BingoSettings:
         return self.__index_colour
 
     @property
-    def index_checked_colour(self) -> str:
-        return self.__index_colour_checked
+    def win_colour(self) -> str:
+        return self.__win_colour
 
     @property
     def dim_cols(self) -> int:
@@ -145,3 +164,7 @@ class BingoSettings:
         if not (0 < item < 10):
             raise ValueError('dim_rows must be between 0 and 10')
         self.__dim_cols = item
+
+    @property
+    def way_to_win(self) -> WayToWinBingo:
+        return self.__way_to_win
