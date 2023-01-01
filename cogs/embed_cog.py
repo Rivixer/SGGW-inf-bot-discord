@@ -21,7 +21,12 @@ class EmbedCog(commands.Cog):
     def __init__(self, bot: SGGWBot):
         self.__bot = bot
 
-    @nextcord.slash_command(name='embed', description="Manage an embed.")
+    @nextcord.slash_command(
+        name='embed',
+        description="Manage an embed.",
+        dm_permission=False,
+        default_member_permissions=1 << 17  # Mention everyone
+    )
     async def _embed(self, *_) -> None:
         pass
 
