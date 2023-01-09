@@ -69,12 +69,16 @@ class CalendarController(Controller, EmbedController):
 
         Removes events from json that are deprecated.
 
-        Reloads settings and updates embed.
+        Reloads settings and updates embed if any event has been removed.
         """
 
+        updated = False
         self._model.reload_settings()
         for event in self._model.calendar_data:
             if event.date < datetime.now().date():
+                updated = True
                 self._model.remove_event_from_json(event)
-        self._model.reload_settings()
-        await self._update_embed()
+
+        if updated:
+            self._model.reload_settings()
+            await self._update_embed()
