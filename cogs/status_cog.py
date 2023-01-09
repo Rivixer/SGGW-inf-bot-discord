@@ -1,6 +1,8 @@
+from nextcord.application_command import SlashOption
+from nextcord.interactions import Interaction
 from nextcord import Activity, ActivityType
 from nextcord.ext import commands
-from utils.checks import has_admin_role, is_bot_channel
+import nextcord
 
 from utils.console import Console
 
@@ -16,46 +18,79 @@ class StatusCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self) -> None:
-        file_path = 'status.txt'
+        activity_type, text = self.__load_status_from_file()
+        await self.__set_status(activity_type, text)
+
+    def __load_status_from_file(self) -> tuple[ActivityType, str]:
+        """Loads from status.txt where
+            the first line is the ActivityType
+            and the second line is the status text.
+
+        If file not exists, returns `str` "zarządzanie serwerem".
+        """
 
         try:
-            with open(file_path, encoding='utf-8') as f:
-                status = f.read()
+            with open('status.txt', 'r', encoding='utf-8') as f:
+                lines = list(map(str.strip, f.readlines()))
+                return (ActivityType[lines[0]], lines[1].strip())
         except Exception as e:
-            Console.error(
-                f'Nie udało się wczytać pliku {file_path}',
+            Console.warn(
+                f'Status cannot be loaded.',
                 exception=e
             )
+            return (ActivityType.playing, 'zarządzenie serwerem')
 
+    def __save_status_to_file(self, activity_type: str, text: str) -> None:
+        """Saves status to file.
+
+        Raises
+        ------
+        OSError
+            Cannot open file.
+        """
+
+        with open('status.txt', 'w', encoding='utf-8') as f:
+            f.writelines([activity_type, '\n', text])
+
+    async def __set_status(self, activity_type: ActivityType, text: str) -> None:
         await self.__bot.change_presence(
             activity=Activity(
-                name=status,
-                type=ActivityType.playing
+                name=text,
+                type=activity_type
             )
         )
 
-    @is_bot_channel()
-    @has_admin_role()
-    @commands.command(
+    @ nextcord.slash_command(
         name='status',
-        brief='Change bot status',
-        description='Only on the bot-channel.'
+        description='Change bot status',
+        dm_permission=False
     )
-    async def _status(self, ctx: commands.Context, *text) -> None:
-        try:
-            with open('status.txt', 'w', encoding='utf-8') as f:
-                f.write(' '.join(text))
-        except Exception as e:
-            return await ctx.send(
-                f'{ctx.author.mention} Coś poszło nie tak!\n{e}'
-            )
-
-        await self.__bot.change_presence(
-            activity=Activity(
-                name=' '.join(text),
-                type=ActivityType.playing
-            )
+    async def _status(
+        self,
+        interaction: Interaction,
+        text: str,
+        activity_type: str = SlashOption(
+            choices=[
+                ActivityType.playing.name,
+                ActivityType.listening.name,
+                ActivityType.watching.name,
+                ActivityType.streaming.name,
+            ]
         )
+    ) -> None:
+        try:
+            await self.__set_status(ActivityType[activity_type], text)
+            self.__save_status_to_file(activity_type, text)
+        except KeyboardInterrupt:
+            pass
+        except Exception as e:
+            await interaction.response.send_message(
+                f'[BŁĄD] {e}', ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(
+                'Zmieniono status', ephemeral=True
+            )
 
 
 def setup(bot: commands.Bot):
