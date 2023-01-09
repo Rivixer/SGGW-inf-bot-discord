@@ -8,6 +8,8 @@ from .bingo_table_controller import BingoTableController
 from .bingo_settings import BingoSettings
 from .bingo_table_exceptions import *
 
+from utils.settings import settings
+
 
 @dataclass(slots=True)
 class BingoInputController:
@@ -88,8 +90,20 @@ class BingoInputController:
                 'Jeśli mimo to chcesz wygenerować nowe, napisz `new+`'
             )
 
-        self.__table_ctrl = self.__table_ctrl.new(settings=self.__settings)
-        self.__table_ctrl.generate()
+        try:
+            self.__table_ctrl = self.__table_ctrl.new(settings=self.__settings)
+            self.__table_ctrl.generate()
+        except Exception as e:
+            try:
+                role_id = settings.get("ADMIN_ROLE_ID")
+                admin_role = message.guild.get_role(role_id)  # type: ignore
+            except:
+                admin_role = None
+            return await message.reply(
+                'Coś poszło nie tak z generowaniem bingo...\n'
+                f'{admin_role.mention} postara się rozwiązać problem.\n' if admin_role else ''
+                f'*{e}*',
+            )
         await self.reply_png(message)
 
     async def __mark_phrase(self, message: Message) -> ...:
