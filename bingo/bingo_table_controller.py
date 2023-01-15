@@ -282,6 +282,8 @@ class BingoTableController:
         ------
         OSError
             File with phrases not exists or cannot be loaded.
+        JSONDecodeError
+            Json is invaild.
         IndexError
             File with phrases contained too few values
         """

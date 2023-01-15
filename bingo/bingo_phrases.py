@@ -82,6 +82,8 @@ class BingoPhrases:
         ------
         OSError
             File not exists or cannot be loaded.
+        JSONDecodeError
+            Json is invaild
         """
 
         with open(dir_path / 'phrases.json', 'r', encoding='utf-8') as f:
