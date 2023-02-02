@@ -47,4 +47,4 @@ Python version: 3.10.X
 5. Install the requirement packages:
     1. Make sure the virtual environment is selected
     2. Type `pip install -r requirements.txt` in the console
-6. Enter `py main.py` in the console to run the bot.
+6. Enter `py sggw_bot.py` in the console to run the bot.
