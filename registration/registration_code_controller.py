@@ -124,7 +124,8 @@ class RegistrationCodeController:
         """
 
         member_data = self.__get_info_from_json()
-        if len(set(i.get('index') for i in member_data)) >= 3:
+        last_indexes = set(i.get('index') for i in member_data)
+        if len(last_indexes) >= 3 and index_no not in last_indexes:
             raise RegistrationBlocked(
                 'Podałeś 3 razy inny indeks.\n'
                 'Rejestracja została **pernamentnie zablokowana**.\n'
