@@ -156,19 +156,25 @@ class RegisteredUsersContorller(ABC):
         matching_members: set[_MemberInfo] = set()
 
         for member in guild.members:
+            compare = (member.display_name.lower(), arg.lower())
             if (
                 str(member.id) == arg
-                or SequenceMatcher(None, member.display_name, arg).ratio() >= 0.8
+                or SequenceMatcher(None, *compare).ratio() >= 0.7
             ):
                 info = _MemberInfo(member, data.get(str(member.id), {}))
                 matching_members.add(info)
 
         for user_id, user_info in data.items():
+            compare_name = (user_info.get('Name', '').lower(), arg.lower())
+            compare_surname = (user_info.get(
+                'Surname', '').lower(), arg.lower()
+            )
+
             if (
                 user_id == arg
                 or str(user_info.get('StudentID')) == arg
-                or SequenceMatcher(None, user_info.get('Name', ''), arg).ratio() >= 0.9
-                or SequenceMatcher(None, user_info.get('Surname', ''), arg).ratio() >= 0.8
+                or SequenceMatcher(None, *compare_name).ratio() >= 0.7
+                or SequenceMatcher(None, *compare_surname).ratio() >= 0.6
             ):
                 member = guild.get_member(int(user_id))
                 if member is not None:
