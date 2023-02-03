@@ -128,7 +128,7 @@ class RegistrationCodeController:
         if len(last_indexes) >= 3 and index_no not in last_indexes:
             raise RegistrationBlocked(
                 'Podałeś 3 razy inny indeks.\n'
-                'Rejestracja została **pernamentnie zablokowana**.\n'
+                'Rejestracja została **permanentnie zablokowana**.\n'
                 'Jeśli chcesz się odwołać, znajdź Admina z listy po prawej '
                 'i napisz do niego prywatną wiadomość.'
             )
