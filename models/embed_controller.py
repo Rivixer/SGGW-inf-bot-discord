@@ -212,7 +212,7 @@ class EmbedController(ABC):
 
         Sets the fields from the json attached in the message.
 
-        Temporarily saves the attachment to a <embed_name>_fields_temp.json.
+        Temporarily saves the attachment to a <embed_name>_fields_temp_set.json.
         After reading it, deletes it.
 
         Even though the exception has been raised,
