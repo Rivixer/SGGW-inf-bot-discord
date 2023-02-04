@@ -141,3 +141,8 @@ logs/
 old_settings/
 old_files/
 prototype_json.json
+
+# Registraion
+registered_users.json
+student_indexes.txt
+registration_codes.json
