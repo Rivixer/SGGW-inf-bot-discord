@@ -3,9 +3,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from abc import ABC
+import asyncio
 import json
 import os
 
+from nextcord.channel import TextChannel
 from nextcord.message import Attachment
 from nextcord.member import Member
 from nextcord.embeds import Embed
@@ -13,6 +15,7 @@ from nextcord.guild import Guild
 import nextcord
 
 from utils.console import Console, FontColour
+from utils.settings import settings
 
 from .registration_exceptions import RegistrationError
 from .registration_model import RegistrationModel
@@ -104,7 +107,23 @@ class RegisteredUsersContorller(ABC):
         except Exception as e:
             raise RegistrationError(e)
 
-        await member.add_roles(verified_role)
+        async def send_message_in_bot_channel():
+            channel_id = settings.get('BOT_CHANNEL_ID')
+            if channel_id is None:
+                return
+            channel = member.guild.get_channel(channel_id)
+            if not isinstance(channel, TextChannel):
+                return
+            await channel.send(
+                f'**Użytkownik {member.display_name}#{member.discriminator} '
+                f'zarejestrował się!** (index={index_no}) ' +
+                (f'\n{other_info}' if other_info else '')
+            )
+
+        await asyncio.gather(
+            member.add_roles(verified_role),
+            send_message_in_bot_channel()
+        )
 
     @classmethod
     def find_users_by_index(cls, guild: Guild, index: str) -> list[Member]:
