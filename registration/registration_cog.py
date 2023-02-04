@@ -42,6 +42,9 @@ class RegistrationCog(commands.Cog):
         if message.channel.id != channel_id or len(message.embeds) > 0:
             return
 
+        if len(message.embeds) > 0 and message.author == self.__bot.user:
+            return
+
         try:
             await message.delete()
         except:
