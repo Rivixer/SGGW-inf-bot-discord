@@ -96,7 +96,7 @@ class CodeModal(Modal):
         return TextInput(
             label='Do czego Ci kolejne konto?',
             placeholder=f'Masz już {account_count_info}.\n'
-            'Być może streamujesz z tableta?\n'
+            'Być może streamujesz z tabletu?\n'
             'Daj znać! Które konto ma być Twoim głównym?',
             style=TextInputStyle.paragraph,
             required=True,
@@ -136,7 +136,7 @@ class CodeModal(Modal):
             )
         except RegistrationError as e:
             Console.important_error('Cannot register user', e)
-            return interaction.response.send_message(
+            return await interaction.response.send_message(
                 'Coś poszło nie tak z rejestracją.\n'
                 'Spróbuj ponownie poźniej.\n'
                 'Przepraszamy za utrudnienia.',
