@@ -136,7 +136,7 @@ class CodeModal(Modal):
             )
         except RegistrationError as e:
             Console.important_error('Cannot register user', e)
-            return interaction.response.send_message(
+            return await interaction.response.send_message(
                 'Coś poszło nie tak z rejestracją.\n'
                 'Spróbuj ponownie poźniej.\n'
                 'Przepraszamy za utrudnienia.',
