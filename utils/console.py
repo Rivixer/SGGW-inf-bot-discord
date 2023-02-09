@@ -1,87 +1,101 @@
-import os
-import sys
-import atexit
-import traceback
 from enum import Enum
-from datetime import datetime as dt
-from datetime import timedelta as td
+import datetime as dt
+import traceback
+import atexit
+import sys
+import os
 
 
 class FontColour(Enum):
-    WHITE = ''
+    GRAY = '\033[30m'
     RED = '\033[31m'
     GREEN = '\033[32m'
     YELLOW = '\033[33m'
     BLUE = '\033[34m'
     PINK = '\033[35m'
     CYAN = '\033[36m'
+    WHITE = '\033[37m'
 
 
 _LOGS_FOLDER = 'logs/'
 
 
 class Console:
-    last_save = dt.now()
-    logs = []
-    __last_message_time: dt.date = None
+    __logs = []
+    __last_message_time: dt.date | None = None
 
+    def __init__(self) -> None:
+        self.file_name = self.__get_filename()
+        self.__create_folder_if_not_exists()
+        atexit.register(self.__save_to_file)
+
+    @staticmethod
     def __new_day_info(func):
+        """A decorator that prints info about the new day
+        if the last log was sent another day.
+        """
+
         def wrapper(*args, **kwargs):
-            current_date = dt.now().date()
+            current_date = dt.datetime.now().date()
             if (
                 Console.__last_message_time is None
                 or Console.__last_message_time != current_date
             ):
                 Console.__last_message_time = current_date
                 msg = f'{current_date.strftime("%d-%m-%Y"):_^22}'
-                logs.logs.append(f'\n{msg}\n')
+                logs.__logs.append(f'\n{msg}\n')
                 print(msg)
 
             func(*args, **kwargs)
 
         return wrapper
 
-    def __init__(self):
-        self.file_name = self.__get_file_name()
-        self.__create_folder_if_not_exists()
-        atexit.register(self.__save_to_file)
+    @staticmethod
+    def __get_filename() -> str:
+        """Returns the filename where logs will be stored.
+        The filename contains the current datetime.
+        """
 
-    def __get_file_name(self):
-        now = str(dt.now().replace(microsecond=0))
+        now = str(dt.datetime.now().replace(microsecond=0))
         return now.replace(' ', '_').replace(':', '-')
 
-    def __create_folder_if_not_exists(self):
+    @staticmethod
+    def __create_folder_if_not_exists():
+        """Creates a folder for logs if it doesn't exist."""
         if not os.path.exists(_LOGS_FOLDER):
             os.mkdir(_LOGS_FOLDER)
 
-    def __try_save_to_file(self):
-        if len(self.logs) >= 10 or self.last_save + td(minutes=10) < dt.now():
-            self.__save_to_file()
-
     def __save_to_file(self):
+        """Saves logs to .txt file. Clears self.__logs."""
         with open(f'{_LOGS_FOLDER}/{self.file_name}.txt', 'a', encoding='utf-8') as f:
-            for log in self.logs:
+            for log in self.__logs:
                 f.writelines(log + '\n')
 
-        self.logs = []
-        self.last_save = dt.now()
+        self.__logs.clear()
+
+    def __add__(self, obj) -> None:
+        if not isinstance(obj, str):
+            raise TypeError('Only str can be added')
+        self.__logs.append(obj)
 
     @staticmethod
-    @__new_day_info
-    def __send(text: str, type: str, color: str, *, bold_text, bold_type, bold, exception: str | Exception = None):
-        date = dt.now().strftime("%H:%M:%S")
+    def __send(
+        text: str,
+        type: str,
+        color: FontColour,
+        *,
+        bold_text: bool,
+        bold_type: bool,
+        exception: Exception | str | None = None
+    ) -> None:
+        """Prints log to the console.
+        Adds info to logs."""
+
+        date = dt.datetime.now().strftime("%H:%M:%S")
         reset = '\033[0m'
 
-        if bold is not False:
-            if bold_text or bold:
-                bold_text = "\033[1m"
-            if bold_type or bold:
-                bold_type = "\033[1m"
-
-        if bold_text not in ("\033[1m", ""):
-            bold_text = ""
-        if bold_type not in ("\033[1m", ""):
-            bold_type = ""
+        _bold_text = '\033[1m' if bold_text else ''
+        _bold_type = '\033[1m' if bold_type else ''
 
         if isinstance(exception, Exception):
             exc = '\n' + traceback.format_exc()
@@ -94,111 +108,140 @@ class Console:
             exc = "\n"
 
         print(
-            f'[{date}]  {color}{bold_type}[{type}]{reset} '
-            f'{color}{bold_text}{text} {exc}{reset}'
+            f'[{date}]  {color.value}{_bold_type}[{type}]{reset} '
+            f'{color.value}{_bold_text}{text} {exc}{reset}'
         )
 
-    @staticmethod
-    def cogs(text: str, *, bold_type: bool = True, bold_text: bool = True, bold: bool = None):
-        date = dt.now().strftime("%H:%M:%S")
-        color = FontColour.GREEN.value
-        logs.logs.append(f'[{date}] <COGS> {text}')
-        logs.__try_save_to_file()
-        Console.__send(text, "COGS", color,
-                       bold_text=bold_text, bold_type=bold_type, bold=bold)
+        Console.__logs.append(f'[{date}] <{type}> {text}')
 
     @staticmethod
-    def info(text: str, *, bold_type: bool = True, bold_text: bool = True, bold: bool = None):
-        date = dt.now().strftime("%H:%M:%S")
-        color = FontColour.BLUE.value
-        logs.logs.append(f'[{date}] <INFO> {text}')
-        logs.__try_save_to_file()
-        Console.__send(text, 'INFO', color,
-                       bold_text=bold_text, bold_type=bold_type, bold=bold)
-
-    @staticmethod
-    def message(text: str, type: str, *, bold_type: bool = True, bold_text: bool = False, bold: bool = None):
-        date = dt.now().strftime("%H:%M:%S")
-        color = FontColour.CYAN.value
-        logs.logs.append(f'[{date}] {{{type}}} {text}')
-        logs.__try_save_to_file()
-        Console.__send(text, type, color, bold_text=bold_text,
-                       bold_type=bold_type, bold=bold)
-
-    @staticmethod
-    def other(text: str, type: str, *, bold_type: bool = False, bold_text: bool = False, bold: bool = None):
-        date = dt.now().strftime("%H:%M:%S")
-        color = FontColour.PINK.value
-        logs.logs.append(f'[{date}] {{{type}}} {text}')
-        logs.__try_save_to_file()
-        Console.__send(text, type, color, bold_text=bold_text,
-                       bold_type=bold_type, bold=bold)
-
-    @staticmethod
-    def specific(text: str, type: str, colour: FontColour, *, bold_type: bool = False, bold_text: bool = False, bold: bool = None):
-        date = dt.now().strftime("%H:%M:%S")
-        color = colour.value
-        logs.logs.append(f'[{date}] {{{type}}} {text}')
-        logs.__try_save_to_file()
-
-        Console.__send(text, type, color, bold_text=bold_text,
-                       bold_type=bold_type, bold=bold)
-
-    @staticmethod
-    def warn(text: str, *, bold_type: bool = True, bold_text: bool = True, bold: bool = None, exception: Exception = None):
-        date = dt.now().strftime("%H:%M:%S")
-        color = FontColour.YELLOW.value
-        logs.logs.append('\n---------------- WARNING ----------------')
-        logs.logs.append(f'[{date}] {text}')
-        if exception:
-            logs.logs.append(traceback.format_exc())
-        logs.logs.append('-----------------------------------------\n')
-        logs.__try_save_to_file()
-
-        Console.__send(text, 'WARN', color, bold_text=bold_text,
-                       bold_type=bold_type, bold=bold, exception=exception)
-
-    @staticmethod
-    def error(text: str, *, bold_type: bool = False, bold_text: bool = False, bold: bool = None, exception: Exception = None):
-        date = dt.now().strftime("%H:%M:%S")
-        color = FontColour.RED.value
-        logs.logs.append('\n----------------- ERROR -----------------')
-        logs.logs.append(f'[{date}] {text}')
-        if exception:
-            logs.logs.append(traceback.format_exc())
-        logs.logs.append('-----------------------------------------\n')
-        logs.__try_save_to_file()
-
-        Console.__send(text, 'ERROR', color, bold_text=bold_text,
-                       bold_type=bold_type, bold=bold, exception=exception)
-
-    @staticmethod
-    def important_error(text: str, exception: Exception, *, bold_type: bool = True, bold_text: bool = True, bold: bool = None):
-        date = dt.now().strftime("%H:%M:%S")
-        color = FontColour.RED.value
-        logs.logs.append('\n------------ IMPORTANT ERROR ------------')
-        logs.logs.append(f'[{date}]')
-        logs.logs.append(text)
-        logs.logs.append(traceback.format_exc())
-        logs.logs.append('-----------------------------------------\n')
+    @__new_day_info
+    def cogs(text: str, *, bold_type: bool = True, bold_text: bool = True) -> None:
+        color = FontColour.GREEN
+        Console.__send(
+            text, "COGS", color,
+            bold_text=bold_text,
+            bold_type=bold_type
+        )
         logs.__save_to_file()
 
-        Console.__send(text, '!ERROR!', color, bold_text=bold_text,
-                       bold_type=bold_type, bold=bold, exception=exception)
+    @staticmethod
+    @__new_day_info
+    def info(text: str, *, bold_type: bool = True, bold_text: bool = True) -> None:
+        color = FontColour.BLUE
+        Console.__send(
+            text, 'INFO', color,
+            bold_text=bold_text,
+            bold_type=bold_type
+        )
+        logs.__save_to_file()
 
     @staticmethod
+    @__new_day_info
+    def message(text: str, type: str, *, bold_type: bool = True, bold_text: bool = False) -> None:
+        color = FontColour.CYAN
+        Console.__send(
+            text, type, color,
+            bold_text=bold_text,
+            bold_type=bold_type
+        )
+        logs.__save_to_file()
+
+    @staticmethod
+    @__new_day_info
+    def specific(
+        text: str,
+        type: str,
+        colour: FontColour,
+        *,
+        bold_type: bool = False,
+        bold_text: bool = False
+    ) -> None:
+        Console.__send(
+            text, type, colour,
+            bold_text=bold_text,
+            bold_type=bold_type
+        )
+        logs.__save_to_file()
+
+    @staticmethod
+    @__new_day_info
+    def warn(
+        text: str,
+        *,
+        bold_type: bool = True,
+        bold_text: bool = True,
+        exception: Exception | None = None
+    ) -> None:
+        color = FontColour.YELLOW
+        logs.__logs.append(f'\n{" WARNING ":"-"^30}')
+        Console.__send(
+            text, 'WARN', color,
+            bold_text=bold_text,
+            bold_type=bold_type,
+            exception=exception
+        )
+        if exception:
+            logs.__logs.append(traceback.format_exc())
+        logs.__logs.append('-'*37+'\n')
+        logs.__save_to_file()
+
+    @staticmethod
+    @__new_day_info
+    def error(
+        text: str,
+        *,
+        bold_type: bool = False,
+        bold_text: bool = False,
+        exception: Exception | None = None
+    ) -> None:
+        color = FontColour.RED
+        logs.__logs.append(f'\n{" ERROR ":"-"^34}')
+        Console.__send(
+            text, 'ERROR', color,
+            bold_text=bold_text,
+            bold_type=bold_type, exception=exception
+        )
+        if exception:
+            logs.__logs.append(traceback.format_exc())
+        logs.__logs.append('-'*41+'\n')
+        logs.__save_to_file()
+
+    @staticmethod
+    @__new_day_info
+    def important_error(
+        text: str,
+        exception: Exception,
+        *,
+        bold_type: bool = True,
+        bold_text: bool = True
+    ) -> None:
+        color = FontColour.RED
+        logs.__logs.append(f'\n{" IMPORTANT ERROR ":"-"^24}')
+        Console.__send(
+            text, '!ERROR!', color,
+            bold_text=bold_text,
+            bold_type=bold_type,
+            exception=exception
+        )
+        logs.__logs.append(traceback.format_exc())
+        logs.__logs.append('-'*41+'\n')
+        logs.__save_to_file()
+
+    @staticmethod
+    @__new_day_info
     def critical_error(text: str, exception: Exception):
-        """Quit the program after this error and save content to logs file."""
-        date = dt.now().strftime("%H:%M:%S")
-        logs.logs.append('\n============= CRITICAL ERROR =============')
-        logs.logs.append(f'[{date}] {text}\n')
-        logs.logs.append(f'{exception}\n')
-        logs.logs.append(traceback.format_exc())
+        """Exits the program."""
+        logs.__logs.append(f'\n{" CRITICAL ERROR ":=^33}')
+        Console.__send(
+            text, '!ERROR!', FontColour.RED,
+            bold_text=True,
+            bold_type=True,
+            exception=exception
+        )
+        logs.__logs.append(f'{exception}\n')
+        logs.__logs.append(traceback.format_exc())
         logs.__save_to_file()
-
-        Console.__send(text, '!ERROR!', '\033[31m', bold_text=True,
-                       bold_type=True, bold=True, exception=exception)
-
         sys.exit()
 
 
