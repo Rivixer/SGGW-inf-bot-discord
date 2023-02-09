@@ -174,7 +174,7 @@ class Console:
         exception: Exception | None = None
     ) -> None:
         color = FontColour.YELLOW
-        logs.__logs.append(f'\n{" WARNING ":"-"^30}')
+        logs.__logs.append(f'\n{" WARNING ":-^35}')
         Console.__send(
             text, 'WARN', color,
             bold_text=bold_text,
@@ -196,7 +196,7 @@ class Console:
         exception: Exception | None = None
     ) -> None:
         color = FontColour.RED
-        logs.__logs.append(f'\n{" ERROR ":"-"^34}')
+        logs.__logs.append(f'\n{" ERROR ":-^38}')
         Console.__send(
             text, 'ERROR', color,
             bold_text=bold_text,
@@ -217,7 +217,7 @@ class Console:
         bold_text: bool = True
     ) -> None:
         color = FontColour.RED
-        logs.__logs.append(f'\n{" IMPORTANT ERROR ":"-"^24}')
+        logs.__logs.append(f'\n{" IMPORTANT ERROR ":-^33}')
         Console.__send(
             text, '!ERROR!', color,
             bold_text=bold_text,
