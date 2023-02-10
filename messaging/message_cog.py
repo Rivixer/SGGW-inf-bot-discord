@@ -10,6 +10,7 @@ from nextcord.ext import commands
 from nextcord.file import File
 import nextcord
 
+from utils.commands import SlashCommandUtils
 from utils.attachment import AttachmentUtils
 from sggw_bot import SGGWBot
 
@@ -50,6 +51,7 @@ class MessageCog(commands.Cog):
         pass
 
     @_message.subcommand(name='send', description="Send a message.")
+    @SlashCommandUtils.log('message send', show_channel=True)
     async def _send(
         self,
         interaction: Interaction,
@@ -136,6 +138,7 @@ class MessageCog(commands.Cog):
                 attachment_utils.delete()  # type: ignore
 
     @_message.subcommand(name='edit', description="Edit a message.")
+    @SlashCommandUtils.log('message edit', show_channel=True)
     async def _edit(
         self,
         interaction: Interaction,
@@ -199,6 +202,7 @@ class MessageCog(commands.Cog):
                 attachment_utils.delete()  # type: ignore
 
     @_message.subcommand(name='remove', description="Remove something from message")
+    @SlashCommandUtils.log('message remove', show_channel=True)
     async def _remove(
         self,
         interaction: Interaction,
@@ -255,6 +259,7 @@ class MessageCog(commands.Cog):
             )
 
     @_message.subcommand(name='get_embed', description='Get an embed from the message.')
+    @SlashCommandUtils.log('message get_embed', show_channel=True)
     async def _get_embed(
         self,
         interaction: Interaction,
@@ -298,6 +303,7 @@ class MessageCog(commands.Cog):
                 pass
 
     @_message.subcommand(name='embed_prototype', description="Get prototype of embed in json.")
+    @SlashCommandUtils.log('message embed_prototype')
     async def _prototype(self, interaction: Interaction) -> None:
         try:
             file = EmbedUtils.embed_prototype()

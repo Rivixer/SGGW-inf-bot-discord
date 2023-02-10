@@ -11,6 +11,8 @@ from sggw_bot import SGGWBot
 
 from .assign_role_controller import AssignRoleController
 
+from utils.commands import SlashCommandUtils
+
 
 class AssignRoleCog(commands.Cog):
 
@@ -69,10 +71,12 @@ class AssignRoleCog(commands.Cog):
         pass
 
     @_roles.subcommand(name='send', description='Send new embed')
+    @SlashCommandUtils.log('roles send', show_channel=True)
     async def _send(self, interaction: Interaction) -> None:
         await self.__ctrl.send(interaction)
 
     @_roles.subcommand(name='update', description='Update embed')
+    @SlashCommandUtils.log('roles update')
     async def _update(self, interaction: Interaction) -> None:
         await self.__ctrl.update(interaction)
 
@@ -80,7 +84,8 @@ class AssignRoleCog(commands.Cog):
         name='set_max_groups',
         description='Set max number of groups'
     )
-    async def _max_groups(
+    @SlashCommandUtils.log('roles set_max_groups')
+    async def _set_max_groups(
         self,
         interaction: Interaction,
         amount: int = SlashOption(
@@ -92,6 +97,7 @@ class AssignRoleCog(commands.Cog):
         await self.__ctrl.update_max_groups(interaction, amount=amount)
 
     @_roles.subcommand(name='change_thumbnail', description='Change thumbnail')
+    @SlashCommandUtils.log('roles change_thumbnail')
     async def _change_thumbnail(
         self,
         interaction: Interaction,
@@ -103,6 +109,7 @@ class AssignRoleCog(commands.Cog):
         await self.__ctrl.change_thumbnail(interaction, url)
 
     @_roles.subcommand(name='get_json', description='Get json with embed fields')
+    @SlashCommandUtils.log('roles get_json')
     async def _get_fields(self, interaction: Interaction) -> None:
         try:
             file = self.__ctrl.get_fields_from_json('roles')
@@ -119,6 +126,7 @@ class AssignRoleCog(commands.Cog):
                 pass
 
     @_roles.subcommand(name='set_json', description='Set json with embed fields')
+    @SlashCommandUtils.log('roles set_json')
     async def _set_fields(
             self,
             interaction: Interaction,
