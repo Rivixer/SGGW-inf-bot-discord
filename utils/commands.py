@@ -2,6 +2,10 @@ from typing import Callable, Awaitable
 from abc import ABC
 import functools
 
+from nextcord.application_command import (
+    SlashApplicationSubcommand,
+    SlashApplicationCommand
+)
 from nextcord.interactions import Interaction
 from nextcord.channel import TextChannel
 from nextcord.member import Member
@@ -16,7 +20,6 @@ class SlashCommandUtils(ABC):
 
     @staticmethod
     def log(
-        func_name: str,
         colour: FontColour = FontColour.PINK,
         show_channel: bool = False
     ) -> Callable[..., _FUNC]:
@@ -26,11 +29,11 @@ class SlashCommandUtils(ABC):
         This decorator should be placed after
             decorators that set a function as a command.
 
+        If the command is a subcommand, its name
+            will be preceded by its parent name.
+
         Prameters
         ---------
-        func_name: `str`
-            Function name. If a function is a subcommand,
-            the name should be preceded by the name of its parent.
         colour: `FontColour`
             Console message colour.
         show_channel: `bool`
@@ -40,6 +43,19 @@ class SlashCommandUtils(ABC):
         def decorator(func: _FUNC) -> _FUNC:
             @functools.wraps(func)
             async def wrapper(self, interaction: Interaction, *args, **kwargs) -> None:
+                command = interaction.application_command
+                if isinstance(command, SlashApplicationSubcommand):
+                    parent: SlashApplicationCommand
+                    parent = command.parent_cmd  # type: ignore
+                    command_name = f'{parent.name} {command.name}'
+                elif isinstance(command, SlashApplicationCommand):
+                    command_name = command.name
+                else:
+                    raise TypeError(
+                        'Decorated function must be '
+                        'SlashApplicationSubcommand or SlashApplicationCommand'
+                    )
+
                 type_info = 'SLASH_COMMAND'
                 user: Member = interaction.user  # type: ignore
                 user_info = f'{user.display_name} ({user.name}#{user.discriminator})'
@@ -54,7 +70,7 @@ class SlashCommandUtils(ABC):
                         type_info += f'/{channel.name}'
 
                 Console.specific(
-                    f'{user_info} used /{func_name} {kwargs_info}',
+                    f'{user_info} used /{command_name} {kwargs_info}',
                     type_info, colour
                 )
 

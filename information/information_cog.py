@@ -35,17 +35,17 @@ class InformationCog(commands.Cog):
         pass
 
     @_information.subcommand(name='send', description='Send new embed')
-    @SlashCommandUtils.log('information send', show_channel=True)
+    @SlashCommandUtils.log(show_channel=True)
     async def _send(self, interaction: Interaction) -> None:
         await self.__ctrl.send(interaction)
 
     @_information.subcommand(name='update', description='Update embed')
-    @SlashCommandUtils.log('information update')
+    @SlashCommandUtils.log()
     async def _update(self, interaction: Interaction) -> None:
         await self.__ctrl.update(interaction)
 
     @_information.subcommand(name='change_thumbnail', description='Change thumbnail')
-    @SlashCommandUtils.log('information change_thumbnail')
+    @SlashCommandUtils.log()
     async def _change_thumbnail(
         self,
         interaction: Interaction,
@@ -57,7 +57,7 @@ class InformationCog(commands.Cog):
         await self.__ctrl.change_thumbnail(interaction, url)
 
     @_information.subcommand(name='get_json', description='Get json with embed fields')
-    @SlashCommandUtils.log('information get_json')
+    @SlashCommandUtils.log()
     async def _get_fields(self, interaction: Interaction) -> None:
         try:
             file = self.__ctrl.get_fields_from_json('information')
@@ -74,7 +74,7 @@ class InformationCog(commands.Cog):
                 pass
 
     @_information.subcommand(name='set_json', description='Set json with embed fields')
-    @SlashCommandUtils.log('information set_json')
+    @SlashCommandUtils.log()
     async def _set_fields(
             self,
             interaction: Interaction,

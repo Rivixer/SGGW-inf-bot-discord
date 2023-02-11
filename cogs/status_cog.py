@@ -66,7 +66,7 @@ class StatusCog(commands.Cog):
         description='Change bot status',
         dm_permission=False
     )
-    @SlashCommandUtils.log('status')
+    @SlashCommandUtils.log()
     async def _status(
         self,
         interaction: Interaction,
