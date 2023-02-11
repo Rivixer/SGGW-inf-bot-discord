@@ -4,6 +4,7 @@ from nextcord import Activity, ActivityType
 from nextcord.ext import commands
 import nextcord
 
+from utils.commands import SlashCommandUtils
 from utils.console import Console
 
 
@@ -60,11 +61,12 @@ class StatusCog(commands.Cog):
             )
         )
 
-    @ nextcord.slash_command(
+    @nextcord.slash_command(
         name='status',
         description='Change bot status',
         dm_permission=False
     )
+    @SlashCommandUtils.log('status')
     async def _status(
         self,
         interaction: Interaction,

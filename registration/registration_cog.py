@@ -10,6 +10,7 @@ from nextcord.member import Member
 from nextcord.ext import commands
 import nextcord
 
+from utils.commands import SlashCommandUtils
 from utils.console import Console, FontColour
 from sggw_bot import SGGWBot
 
@@ -81,6 +82,7 @@ class RegistrationCog(commands.Cog):
         description='Komenda do zarejestrowania się na tym serwerze.',
         dm_permission=False
     )
+    @SlashCommandUtils.log('register')
     async def _register(
         self,
         interaction: Interaction,
@@ -91,11 +93,6 @@ class RegistrationCog(commands.Cog):
             max_length=6
         )
     ) -> ...:
-        Console.specific(
-            f'{interaction.user} used /register {index_no}',
-            'Registration', FontColour.PINK
-        )
-
         if not index_no.isdigit():
             return await interaction.response.send_message(
                 'Indeks musi zawierać 6 cyfr!',
@@ -158,6 +155,7 @@ class RegistrationCog(commands.Cog):
         dm_permission=False,
         default_member_permissions=1 << 17  # Mention everyone
     )
+    @SlashCommandUtils.log('whois')
     async def _whois(
         self,
         interaction: Interaction,
@@ -190,6 +188,7 @@ class RegistrationCog(commands.Cog):
         dm_permission=False,
         default_member_permissions=1 << 17  # Mention everyone
     )
+    @SlashCommandUtils.log('get_member_info')
     async def _get_member_info(
         self,
         interaction: Interaction,
@@ -217,6 +216,7 @@ class RegistrationCog(commands.Cog):
         dm_permission=False,
         default_member_permissions=1 << 17  # Mention everyone
     )
+    @SlashCommandUtils.log('set_member_info')
     async def _set_member_info(
         self,
         interaction: Interaction,

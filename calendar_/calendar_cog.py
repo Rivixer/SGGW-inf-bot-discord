@@ -6,6 +6,7 @@ from nextcord.interactions import Interaction
 from nextcord.ext import commands, tasks
 import nextcord
 
+from utils.commands import SlashCommandUtils
 from utils.wait_time import time_to_midnight
 from sggw_bot import SGGWBot
 
@@ -37,14 +38,17 @@ class CalendarCog(commands.Cog):
         pass
 
     @_calendar.subcommand(name='send', description='Send new embed')
+    @SlashCommandUtils.log('calendar send', show_channel=True)
     async def _send(self, interaction: Interaction) -> None:
         await self.__ctrl.send(interaction)
 
     @_calendar.subcommand(name='update', description='Update embed')
+    @SlashCommandUtils.log('calendar update')
     async def _update(self, interaction: Interaction) -> None:
         await self.__ctrl.update(interaction)
 
     @_calendar.subcommand(name='add', description='Add new event')
+    @SlashCommandUtils.log('calendar add')
     async def _add(
         self,
         interaction: Interaction,
@@ -64,6 +68,7 @@ class CalendarCog(commands.Cog):
         await self.__ctrl.add_event(interaction, description, date, time)
 
     @_calendar.subcommand(name='remove', description='Remove event')
+    @SlashCommandUtils.log('calendar remove')
     async def _remove(
         self,
         interaction: Interaction,
@@ -74,6 +79,7 @@ class CalendarCog(commands.Cog):
         await self.__ctrl.remove_event(interaction, index)
 
     @_calendar.subcommand(name='show', description='Show events with indexes')
+    @SlashCommandUtils.log('calendar show')
     async def _show(self, interaction: Interaction) -> None:
         events = self.__ctrl.get_events_with_indexes()
         await interaction.response.send_message(
@@ -82,6 +88,7 @@ class CalendarCog(commands.Cog):
         )
 
     @ _calendar.subcommand(name='change_thumbnail', description='Change thumbnail')
+    @SlashCommandUtils.log('calendar change_thumbnail')
     async def _change_thumbnail(
         self,
         interaction: Interaction,
@@ -93,6 +100,7 @@ class CalendarCog(commands.Cog):
         await self.__ctrl.change_thumbnail(interaction, url)
 
     @ _calendar.subcommand(name='get_json', description='Get json with embed fields')
+    @SlashCommandUtils.log('calendar get_json')
     async def _get_fields(self, interaction: Interaction) -> None:
         try:
             file = self.__ctrl.get_fields_from_json('calendar')
@@ -109,6 +117,7 @@ class CalendarCog(commands.Cog):
                 pass
 
     @_calendar.subcommand(name='set_json', description='Set json with embed fields')
+    @SlashCommandUtils.log('calendar set_json')
     async def _set_fields(
         self,
         interaction: Interaction,
@@ -120,6 +129,7 @@ class CalendarCog(commands.Cog):
         await self.__ctrl.set_fields_from_json(interaction, file, 'calendar')
 
     @_calendar.subcommand(name='remove_deprecated_events_loop')
+    @SlashCommandUtils.log('calendar remove_deprecated_events_loop')
     async def _remove_deprecated_events_command(
         self,
         interaction: Interaction,

@@ -5,6 +5,7 @@ from nextcord.interactions import Interaction
 from nextcord.ext import commands
 import nextcord
 
+from utils.commands import SlashCommandUtils
 from sggw_bot import SGGWBot
 
 from .project_controller import ProjectController
@@ -34,14 +35,17 @@ class projectCog(commands.Cog):
         pass
 
     @_project.subcommand(name='send', description='Send new embed')
+    @SlashCommandUtils.log('project send', show_channel=True)
     async def _send(self, interaction: Interaction) -> None:
         await self.__ctrl.send(interaction)
 
     @_project.subcommand(name='update', description='Update embed')
+    @SlashCommandUtils.log('project update')
     async def _update(self, interaction: Interaction) -> None:
         await self.__ctrl.update(interaction)
 
     @_project.subcommand(name='change_thumbnail', description='Change thumbnail')
+    @SlashCommandUtils.log('project change_thumbnail')
     async def _change_thumbnail(
         self,
         interaction: Interaction,
@@ -53,6 +57,7 @@ class projectCog(commands.Cog):
         await self.__ctrl.change_thumbnail(interaction, url)
 
     @_project.subcommand(name='get_json', description='Get json with embed fields')
+    @SlashCommandUtils.log('project get_json')
     async def _get_fields(self, interaction: Interaction) -> None:
         try:
             file = self.__ctrl.get_fields_from_json('project')
@@ -69,6 +74,7 @@ class projectCog(commands.Cog):
                 pass
 
     @_project.subcommand(name='set_json', description='Set json with embed fields')
+    @SlashCommandUtils.log('project set_json')
     async def _set_fields(
             self,
             interaction: Interaction,
