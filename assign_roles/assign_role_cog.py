@@ -1,5 +1,3 @@
-import os
-
 from nextcord.raw_models import RawReactionActionEvent
 from nextcord.application_command import SlashOption
 from nextcord.interactions import Interaction
@@ -7,14 +5,14 @@ from nextcord.channel import TextChannel
 from nextcord.ext import commands
 import nextcord
 
+from models.cog_with_embed import CogWithEmbed
+from utils.commands import SlashCommandUtils
 from sggw_bot import SGGWBot
 
 from .assign_role_controller import AssignRoleController
 
-from utils.commands import SlashCommandUtils
 
-
-class AssignRoleCog(commands.Cog):
+class AssignRoleCog(CogWithEmbed):
 
     __slots__ = (
         '__bot',
@@ -27,6 +25,7 @@ class AssignRoleCog(commands.Cog):
     def __init__(self, bot: SGGWBot) -> None:
         self.__bot = bot
         self.__ctrl = AssignRoleController(bot)
+        super().__init__(self.__ctrl, self._roles)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: RawReactionActionEvent) -> None:
@@ -70,21 +69,11 @@ class AssignRoleCog(commands.Cog):
     async def _roles(self, *_) -> None:
         pass
 
-    @_roles.subcommand(name='send', description='Send new embed')
-    @SlashCommandUtils.log('roles send', show_channel=True)
-    async def _send(self, interaction: Interaction) -> None:
-        await self.__ctrl.send(interaction)
-
-    @_roles.subcommand(name='update', description='Update embed')
-    @SlashCommandUtils.log('roles update')
-    async def _update(self, interaction: Interaction) -> None:
-        await self.__ctrl.update(interaction)
-
     @_roles.subcommand(
         name='set_max_groups',
         description='Set max number of groups'
     )
-    @SlashCommandUtils.log('roles set_max_groups')
+    @SlashCommandUtils.log()
     async def _set_max_groups(
         self,
         interaction: Interaction,
@@ -97,7 +86,6 @@ class AssignRoleCog(commands.Cog):
         await self.__ctrl.update_max_groups(interaction, amount=amount)
 
     @_roles.subcommand(name='change_thumbnail', description='Change thumbnail')
-    @SlashCommandUtils.log('roles change_thumbnail')
     async def _change_thumbnail(
         self,
         interaction: Interaction,
@@ -108,25 +96,7 @@ class AssignRoleCog(commands.Cog):
     ) -> None:
         await self.__ctrl.change_thumbnail(interaction, url)
 
-    @_roles.subcommand(name='get_json', description='Get json with embed fields')
-    @SlashCommandUtils.log('roles get_json')
-    async def _get_fields(self, interaction: Interaction) -> None:
-        try:
-            file = self.__ctrl.get_fields_from_json('roles')
-        except OSError as e:
-            await interaction.response.send_message(
-                f'Nie udało się pobrać jsona - {e}', ephemeral=True
-            )
-        else:
-            await interaction.response.send_message(file=file, ephemeral=True)
-        finally:
-            try:
-                os.remove('roles_fields_temp.json')
-            except:
-                pass
-
     @_roles.subcommand(name='set_json', description='Set json with embed fields')
-    @SlashCommandUtils.log('roles set_json')
     async def _set_fields(
             self,
             interaction: Interaction,

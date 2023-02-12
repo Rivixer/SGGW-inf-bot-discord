@@ -82,7 +82,7 @@ class RegistrationCog(commands.Cog):
         description='Komenda do zarejestrowania się na tym serwerze.',
         dm_permission=False
     )
-    @SlashCommandUtils.log('register')
+    @SlashCommandUtils.log()
     async def _register(
         self,
         interaction: Interaction,
@@ -155,7 +155,7 @@ class RegistrationCog(commands.Cog):
         dm_permission=False,
         default_member_permissions=1 << 17  # Mention everyone
     )
-    @SlashCommandUtils.log('whois')
+    @SlashCommandUtils.log()
     async def _whois(
         self,
         interaction: Interaction,
@@ -188,7 +188,7 @@ class RegistrationCog(commands.Cog):
         dm_permission=False,
         default_member_permissions=1 << 17  # Mention everyone
     )
-    @SlashCommandUtils.log('get_member_info')
+    @SlashCommandUtils.log()
     async def _get_member_info(
         self,
         interaction: Interaction,
@@ -216,7 +216,7 @@ class RegistrationCog(commands.Cog):
         dm_permission=False,
         default_member_permissions=1 << 17  # Mention everyone
     )
-    @SlashCommandUtils.log('set_member_info')
+    @SlashCommandUtils.log()
     async def _set_member_info(
         self,
         interaction: Interaction,

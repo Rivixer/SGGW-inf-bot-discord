@@ -1,17 +1,14 @@
-import os
-
 from nextcord.application_command import SlashOption
 from nextcord.interactions import Interaction
-from nextcord.ext import commands
 import nextcord
 
-from utils.commands import SlashCommandUtils
+from models.cog_with_embed import CogWithEmbed
 from sggw_bot import SGGWBot
 
 from .project_controller import ProjectController
 
 
-class projectCog(commands.Cog):
+class ProjectCog(CogWithEmbed):
 
     __slots__ = (
         '__bot',
@@ -24,6 +21,7 @@ class projectCog(commands.Cog):
     def __init__(self, bot: SGGWBot) -> None:
         self.__bot = bot
         self.__ctrl = ProjectController(bot)
+        super().__init__(self.__ctrl, self._project)
 
     @nextcord.slash_command(
         name='project',
@@ -34,18 +32,7 @@ class projectCog(commands.Cog):
     async def _project(self, *_) -> None:
         pass
 
-    @_project.subcommand(name='send', description='Send new embed')
-    @SlashCommandUtils.log('project send', show_channel=True)
-    async def _send(self, interaction: Interaction) -> None:
-        await self.__ctrl.send(interaction)
-
-    @_project.subcommand(name='update', description='Update embed')
-    @SlashCommandUtils.log('project update')
-    async def _update(self, interaction: Interaction) -> None:
-        await self.__ctrl.update(interaction)
-
     @_project.subcommand(name='change_thumbnail', description='Change thumbnail')
-    @SlashCommandUtils.log('project change_thumbnail')
     async def _change_thumbnail(
         self,
         interaction: Interaction,
@@ -56,25 +43,7 @@ class projectCog(commands.Cog):
     ) -> None:
         await self.__ctrl.change_thumbnail(interaction, url)
 
-    @_project.subcommand(name='get_json', description='Get json with embed fields')
-    @SlashCommandUtils.log('project get_json')
-    async def _get_fields(self, interaction: Interaction) -> None:
-        try:
-            file = self.__ctrl.get_fields_from_json('project')
-        except OSError as e:
-            await interaction.response.send_message(
-                f'Nie udało się pobrać jsona - {e}', ephemeral=True
-            )
-        else:
-            await interaction.response.send_message(file=file, ephemeral=True)
-        finally:
-            try:
-                os.remove('project_fields_temp.json')
-            except:
-                pass
-
     @_project.subcommand(name='set_json', description='Set json with embed fields')
-    @SlashCommandUtils.log('project set_json')
     async def _set_fields(
             self,
             interaction: Interaction,
@@ -87,4 +56,4 @@ class projectCog(commands.Cog):
 
 
 def setup(bot: SGGWBot):
-    bot.add_cog(projectCog(bot))
+    bot.add_cog(ProjectCog(bot))
