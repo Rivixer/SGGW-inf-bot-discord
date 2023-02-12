@@ -39,6 +39,7 @@ class CalendarCog(CogWithEmbed):
         pass
 
     @_calendar.subcommand(name='change_thumbnail', description='Change thumbnail')
+    @SlashCommandUtils.log()
     async def _change_thumbnail(
         self,
         interaction: Interaction,
@@ -50,6 +51,7 @@ class CalendarCog(CogWithEmbed):
         await self.__ctrl.change_thumbnail(interaction, url)
 
     @_calendar.subcommand(name='set_json', description='Set json with embed fields')
+    @SlashCommandUtils.log()
     async def _set_fields(
         self,
         interaction: Interaction,

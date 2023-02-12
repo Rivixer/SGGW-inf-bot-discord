@@ -3,6 +3,7 @@ from nextcord.interactions import Interaction
 import nextcord
 
 from models.cog_with_embed import CogWithEmbed
+from utils.commands import SlashCommandUtils
 from sggw_bot import SGGWBot
 
 from .project_controller import ProjectController
@@ -33,6 +34,7 @@ class ProjectCog(CogWithEmbed):
         pass
 
     @_project.subcommand(name='change_thumbnail', description='Change thumbnail')
+    @SlashCommandUtils.log()
     async def _change_thumbnail(
         self,
         interaction: Interaction,
@@ -44,13 +46,14 @@ class ProjectCog(CogWithEmbed):
         await self.__ctrl.change_thumbnail(interaction, url)
 
     @_project.subcommand(name='set_json', description='Set json with embed fields')
+    @SlashCommandUtils.log()
     async def _set_fields(
-            self,
-            interaction: Interaction,
-            file: nextcord.Attachment = SlashOption(
-                description='JSON file with fields, '
-                'downloaded from `/project get_json` and updated'
-            )
+        self,
+        interaction: Interaction,
+        file: nextcord.Attachment = SlashOption(
+            description='JSON file with fields, '
+            'downloaded from `/project get_json` and updated'
+        )
     ) -> None:
         await self.__ctrl.set_fields_from_json(interaction, file, 'project')
 

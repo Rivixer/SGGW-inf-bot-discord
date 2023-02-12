@@ -3,6 +3,7 @@ from nextcord.interactions import Interaction
 import nextcord
 
 from models.cog_with_embed import CogWithEmbed
+from utils.commands import SlashCommandUtils
 from sggw_bot import SGGWBot
 
 from .information_controller import InformationController
@@ -33,6 +34,7 @@ class InformationCog(CogWithEmbed):
         pass
 
     @_information.subcommand(name='change_thumbnail', description='Change thumbnail')
+    @SlashCommandUtils.log()
     async def _change_thumbnail(
         self,
         interaction: Interaction,
@@ -44,6 +46,7 @@ class InformationCog(CogWithEmbed):
         await self.__ctrl.change_thumbnail(interaction, url)
 
     @_information.subcommand(name='set_json', description='Set json with embed fields')
+    @SlashCommandUtils.log()
     async def _set_fields(
         self,
         interaction: Interaction,

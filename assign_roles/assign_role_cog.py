@@ -86,6 +86,7 @@ class AssignRoleCog(CogWithEmbed):
         await self.__ctrl.update_max_groups(interaction, amount=amount)
 
     @_roles.subcommand(name='change_thumbnail', description='Change thumbnail')
+    @SlashCommandUtils.log()
     async def _change_thumbnail(
         self,
         interaction: Interaction,
@@ -97,13 +98,14 @@ class AssignRoleCog(CogWithEmbed):
         await self.__ctrl.change_thumbnail(interaction, url)
 
     @_roles.subcommand(name='set_json', description='Set json with embed fields')
+    @SlashCommandUtils.log()
     async def _set_fields(
-            self,
-            interaction: Interaction,
-            file: nextcord.Attachment = SlashOption(
-                description='JSON file with fields, '
-                'downloaded from `/roles get_json` and updated'
-            )
+        self,
+        interaction: Interaction,
+        file: nextcord.Attachment = SlashOption(
+            description='JSON file with fields, '
+            'downloaded from `/roles get_json` and updated'
+        )
     ) -> None:
         await self.__ctrl.set_fields_from_json(interaction, file, 'roles')
 
