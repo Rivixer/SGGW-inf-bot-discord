@@ -1,11 +1,11 @@
 import asyncio
-import os
 
 from nextcord.application_command import SlashOption
 from nextcord.interactions import Interaction
-from nextcord.ext import commands, tasks
+from nextcord.ext import tasks
 import nextcord
 
+from models.cog_with_embed import CogWithEmbed
 from utils.commands import SlashCommandUtils
 from utils.wait_time import time_to_midnight
 from sggw_bot import SGGWBot
@@ -13,7 +13,7 @@ from sggw_bot import SGGWBot
 from .calendar_controller import CalendarController
 
 
-class CalendarCog(commands.Cog):
+class CalendarCog(CogWithEmbed):
 
     __slots__ = (
         '__bot',
@@ -26,6 +26,7 @@ class CalendarCog(commands.Cog):
     def __init__(self, bot: SGGWBot) -> None:
         self.__bot = bot
         self.__ctrl = CalendarController(bot)
+        super().__init__(self.__ctrl, self._calendar)
         self._remove_deprecated_events.start()
 
     @nextcord.slash_command(
@@ -37,15 +38,27 @@ class CalendarCog(commands.Cog):
     async def _calendar(self, *_) -> None:
         pass
 
-    @_calendar.subcommand(name='send', description='Send new embed')
-    @SlashCommandUtils.log(show_channel=True)
-    async def _send(self, interaction: Interaction) -> None:
-        await self.__ctrl.send(interaction)
+    @_calendar.subcommand(name='change_thumbnail', description='Change thumbnail')
+    async def _change_thumbnail(
+        self,
+        interaction: Interaction,
+        url: str = SlashOption(
+            description='Emoji url (prefered page: \'emoji.gg\')',
+            required=True
+        )
+    ) -> None:
+        await self.__ctrl.change_thumbnail(interaction, url)
 
-    @_calendar.subcommand(name='update', description='Update embed')
-    @SlashCommandUtils.log()
-    async def _update(self, interaction: Interaction) -> None:
-        await self.__ctrl.update(interaction)
+    @_calendar.subcommand(name='set_json', description='Set json with embed fields')
+    async def _set_fields(
+        self,
+        interaction: Interaction,
+        file: nextcord.Attachment = SlashOption(
+            description='JSON file with fields, '
+            'downloaded from `/calendar get_json` and updated'
+        )
+    ) -> None:
+        await self.__ctrl.set_fields_from_json(interaction, file, 'calendar')
 
     @_calendar.subcommand(name='add', description='Add new event')
     @SlashCommandUtils.log()
@@ -86,47 +99,6 @@ class CalendarCog(commands.Cog):
             '\n'.join([f'**{k}**: {v}' for k, v in events.items()]),
             ephemeral=True
         )
-
-    @ _calendar.subcommand(name='change_thumbnail', description='Change thumbnail')
-    @SlashCommandUtils.log()
-    async def _change_thumbnail(
-        self,
-        interaction: Interaction,
-        url: str = SlashOption(
-            description='Emoji url (prefered page: \'emoji.gg\')',
-            required=True
-        )
-    ) -> None:
-        await self.__ctrl.change_thumbnail(interaction, url)
-
-    @ _calendar.subcommand(name='get_json', description='Get json with embed fields')
-    @SlashCommandUtils.log()
-    async def _get_fields(self, interaction: Interaction) -> None:
-        try:
-            file = self.__ctrl.get_fields_from_json('calendar')
-        except OSError as e:
-            await interaction.response.send_message(
-                f'Nie udało się pobrać jsona - {e}', ephemeral=True
-            )
-        else:
-            await interaction.response.send_message(file=file, ephemeral=True)
-        finally:
-            try:
-                os.remove('calendar_fields_temp.json')
-            except:
-                pass
-
-    @_calendar.subcommand(name='set_json', description='Set json with embed fields')
-    @SlashCommandUtils.log()
-    async def _set_fields(
-        self,
-        interaction: Interaction,
-        file: nextcord.Attachment = SlashOption(
-            description='JSON file with fields, '
-            'downloaded from `/calendar get_json` and updated'
-        )
-    ) -> None:
-        await self.__ctrl.set_fields_from_json(interaction, file, 'calendar')
 
     @_calendar.subcommand(name='remove_deprecated_events_loop')
     @SlashCommandUtils.log()
