@@ -14,6 +14,7 @@ from nextcord.embeds import Embed
 from nextcord.guild import Guild
 import nextcord
 
+from assign_roles.assign_role_model import AssignRoleModel
 from utils.console import Console, FontColour
 from utils.settings import settings
 
@@ -23,14 +24,18 @@ from .registration_model import RegistrationModel
 
 @dataclass(frozen=True, slots=True)
 class _MemberInfo:
+    ratio: float
     member: Member
     info: dict[str, Any]
 
+    def __post_init__(self) -> None:
+        assert 0 <= self.ratio <= 1
+
     def __hash__(self) -> int:
-        return self.member.id
+        return self.member.id if self.member else 0
 
 
-class RegisteredUsersContorller(ABC):
+class RegisteredUsersController(ABC):
 
     @staticmethod
     def __get_file_path() -> Path:
@@ -54,6 +59,8 @@ class RegisteredUsersContorller(ABC):
     def __load_data(cls) -> dict[str, dict[str, Any]]:
         """Loads data from json.
 
+        Prints warning to the console if the file is empty.
+
         Raises
         ------
         OSError
@@ -64,6 +71,10 @@ class RegisteredUsersContorller(ABC):
 
         with open(cls.__get_file_path(), 'r', encoding='utf-8') as f:
             data = json.load(f)
+
+        if len(data) == 0:
+            Console.warn(f'The file {cls.__get_file_path()} is empty.')
+
         return data
 
     @classmethod
@@ -82,7 +93,7 @@ class RegisteredUsersContorller(ABC):
         try:
             data = cls.__load_data()
         except Exception as e:
-            raise RegistrationError(e)
+            raise RegistrationError from e
 
         try:
             data[str(member.id)]['StudentID'] = int(index_no)
@@ -159,6 +170,11 @@ class RegisteredUsersContorller(ABC):
             User search argument. It can be a user ID, display name, name, surname or index number.
             Display name, name and surname may contain typos.
 
+        Returns
+        -------
+        `list[Embed]`
+            The list of embeds sorted ascending by ratio.
+
         Raises
         ------
         OSError
@@ -169,39 +185,48 @@ class RegisteredUsersContorller(ABC):
 
         data = cls.__load_data()
 
-        if len(data) == 0:
-            Console.warn(f'The file {cls.__get_file_path()} is empty.')
-
         matching_members: set[_MemberInfo] = set()
 
         for member in guild.members:
-            compare = (member.display_name.lower(), arg.lower())
-            if (
-                str(member.id) == arg
-                or SequenceMatcher(None, *compare).ratio() >= 0.7
-            ):
-                info = _MemberInfo(member, data.get(str(member.id), {}))
-                matching_members.add(info)
+            member_data = data.get(str(member.id), {})
 
-        for user_id, user_info in data.items():
-            compare_name = (user_info.get('Name', '').lower(), arg.lower())
-            compare_surname = (user_info.get(
-                'Surname', '').lower(), arg.lower()
-            )
+            arg = arg.lower()
 
-            if (
-                user_id == arg
-                or str(user_info.get('StudentID')) == arg
-                or SequenceMatcher(None, *compare_name).ratio() >= 0.7
-                or SequenceMatcher(None, *compare_surname).ratio() >= 0.6
-            ):
-                member = guild.get_member(int(user_id))
-                if member is not None:
-                    matching_members.add(_MemberInfo(member, user_info))
+            name = member_data.get('Name', '')
+            surname = member_data.get('Surname', '')
+            student_id = member_data.get('StudentID')
 
+            to_compare = list(filter(None, (
+                member.display_name,
+                member.name,
+                name,
+                surname,
+                name+surname,
+                surname+name,
+                str(member.id),
+                str(student_id)
+            )))
+
+            ratio = max([
+                SequenceMatcher(None, i.lower(), arg).ratio()
+                for i in to_compare
+            ])
+
+            member_info = _MemberInfo(ratio, member, member_data)
+            matching_members.add(member_info)
+
+        max_ratio = max(map(lambda i: i.ratio, matching_members))
+        threshold = max_ratio * 0.9
         embeds = []
-        for member_info in matching_members:
-            embeds.append(cls.__convert_member_to_embed(member_info))
+
+        if max_ratio <= 0.5:
+            return embeds
+
+        for member_info in sorted(matching_members, key=lambda i: i.ratio):
+            if threshold <= member_info.ratio:
+                embed = cls.__convert_member_to_embed(member_info)
+                embeds.append(embed)
+
         return embeds
 
     @staticmethod
@@ -213,7 +238,7 @@ class RegisteredUsersContorller(ABC):
 
         embed = Embed(
             title='Informacje o użytkowniku:',
-            description=f'{member.name}#{member.discriminator} ({member.display_name})',
+            description=f'{member.name}#{member.discriminator} ({member.mention})',
             colour=member.top_role.colour
         ).set_thumbnail(
             url=member.avatar.url if member.avatar else member.default_avatar.url
@@ -221,6 +246,17 @@ class RegisteredUsersContorller(ABC):
 
         for k, v in info.items():
             embed.add_field(name=k, value=v)
+
+        # We don't need to send the bot parameter,
+        # because we don't use it,
+        # and the model will be deleted at the end of this function
+        roles_model = AssignRoleModel(None)  # type: ignore
+        role_ids = list(map(lambda i: i.id, roles_model.roles))
+
+        for role in member.roles:
+            if role.id in role_ids:
+                embed.add_field(name='Rola', value=role.mention, inline=False)
+                break
 
         return embed
 
