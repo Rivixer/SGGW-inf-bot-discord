@@ -169,7 +169,9 @@ class RegistrationCog(commands.Cog):
             )
         except Exception as e:
             Console.error('Error in _whois command.', exception=e)
-            return await interaction.response.send_message('[ERROR], {e}')
+            return await interaction.response.send_message(
+                f'[ERROR] - {e}', ephemeral=True
+            )
 
         if len(embeds) == 0:
             return await interaction.response.send_message(
