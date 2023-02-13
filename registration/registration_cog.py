@@ -180,7 +180,10 @@ class RegistrationCog(commands.Cog):
             )
 
         await interaction.response.send_message(
-            embeds=embeds,
+            f'Znaleziono {len(embeds)} wyników. '
+            'Pokazano 10 najtrafniejszych.'
+            if len(embeds) > 10 else None,
+            embeds=embeds[-10:],
             ephemeral=True
         )
 
