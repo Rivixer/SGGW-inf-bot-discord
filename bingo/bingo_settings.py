@@ -3,7 +3,7 @@ from pathlib import Path
 import re
 import os
 
-from utils.console import Console
+from utils.console import Console, FontColour
 
 
 __all__ = (
@@ -116,9 +116,10 @@ class BingoSettings:
     def __create_folder_if_not_exists(self) -> None:
         if not self.dir_path.exists():
             os.mkdir(self.dir_path)
-            Console.other(
+            Console.specific(
                 f'Stworzono {self.dir_path}',
-                type='bingo_settings'
+                type='bingo_settings',
+                colour=FontColour.PINK
             )
 
     @property

@@ -10,12 +10,13 @@ from nextcord.member import Member
 from nextcord.ext import commands
 import nextcord
 
+from utils.commands import SlashCommandUtils
 from utils.console import Console, FontColour
 from sggw_bot import SGGWBot
 
 from .registration_mail_controller import RegistrationMailController
 from .registration_code_controller import RegistrationCodeController
-from .registered_users_controller import RegisteredUsersContorller
+from .registered_users_controller import RegisteredUsersController
 from .registration_student_utils import RegistrationStudentUtils
 from .registration_model import RegistrationModel
 from .modals.code_modal import CodeModal
@@ -81,6 +82,7 @@ class RegistrationCog(commands.Cog):
         description='Komenda do zarejestrowania się na tym serwerze.',
         dm_permission=False
     )
+    @SlashCommandUtils.log()
     async def _register(
         self,
         interaction: Interaction,
@@ -91,11 +93,6 @@ class RegistrationCog(commands.Cog):
             max_length=6
         )
     ) -> ...:
-        Console.specific(
-            f'{interaction.user} used /register {index_no}',
-            'Registration', FontColour.PINK
-        )
-
         if not index_no.isdigit():
             return await interaction.response.send_message(
                 'Indeks musi zawierać 6 cyfr!',
@@ -114,7 +111,7 @@ class RegistrationCog(commands.Cog):
                 code = e.old_code
                 send_mail = False
 
-            accounts = RegisteredUsersContorller.find_users_by_index(
+            accounts = RegisteredUsersController.find_users_by_index(
                 member.guild, index_no
             )
 
@@ -158,6 +155,7 @@ class RegistrationCog(commands.Cog):
         dm_permission=False,
         default_member_permissions=1 << 17  # Mention everyone
     )
+    @SlashCommandUtils.log()
     async def _whois(
         self,
         interaction: Interaction,
@@ -166,12 +164,14 @@ class RegistrationCog(commands.Cog):
         )
     ) -> ...:
         try:
-            embeds = RegisteredUsersContorller.get_embeds_with_matching_users(
+            embeds = RegisteredUsersController.get_embeds_with_matching_users(
                 interaction.guild, argument  # type: ignore
             )
         except Exception as e:
             Console.error('Error in _whois command.', exception=e)
-            return await interaction.response.send_message('[ERROR], {e}')
+            return await interaction.response.send_message(
+                f'[ERROR] - {e}', ephemeral=True
+            )
 
         if len(embeds) == 0:
             return await interaction.response.send_message(
@@ -180,7 +180,10 @@ class RegistrationCog(commands.Cog):
             )
 
         await interaction.response.send_message(
-            embeds=embeds,
+            f'Znaleziono {len(embeds)} wyników. '
+            'Pokazano 10 najtrafniejszych.'
+            if len(embeds) > 10 else None,
+            embeds=embeds[-10:],
             ephemeral=True
         )
 
@@ -190,13 +193,14 @@ class RegistrationCog(commands.Cog):
         dm_permission=False,
         default_member_permissions=1 << 17  # Mention everyone
     )
+    @SlashCommandUtils.log()
     async def _get_member_info(
         self,
         interaction: Interaction,
         user_id: str
     ) -> ...:
         try:
-            file = RegisteredUsersContorller.get_member_info_json(user_id)
+            file = RegisteredUsersController.get_member_info_json(user_id)
         except (OSError, json.JSONDecodeError) as e:
             await interaction.response.send_message(
                 f'Nie udało się pobrać jsona - {e}',
@@ -217,6 +221,7 @@ class RegistrationCog(commands.Cog):
         dm_permission=False,
         default_member_permissions=1 << 17  # Mention everyone
     )
+    @SlashCommandUtils.log()
     async def _set_member_info(
         self,
         interaction: Interaction,
@@ -226,7 +231,7 @@ class RegistrationCog(commands.Cog):
         )
     ) -> ...:
         try:
-            await RegisteredUsersContorller.save_member_info_json(
+            await RegisteredUsersController.save_member_info_json(
                 file, user_id
             )
         except KeyboardInterrupt:

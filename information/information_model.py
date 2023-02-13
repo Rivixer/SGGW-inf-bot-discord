@@ -3,7 +3,7 @@ from models.model import Model
 from sggw_bot import SGGWBot
 
 
-class InformationsModel(Model):
+class InformationModel(Model):
 
     def __init__(self, bot: SGGWBot) -> None:
         super().__init__(bot)

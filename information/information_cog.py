@@ -6,10 +6,10 @@ from models.cog_with_embed import CogWithEmbed
 from utils.commands import SlashCommandUtils
 from sggw_bot import SGGWBot
 
-from .project_controller import ProjectController
+from .information_controller import InformationController
 
 
-class ProjectCog(CogWithEmbed):
+class InformationCog(CogWithEmbed):
 
     __slots__ = (
         '__bot',
@@ -17,46 +17,46 @@ class ProjectCog(CogWithEmbed):
     )
 
     __bot: SGGWBot
-    __ctrl: ProjectController
+    __ctrl: InformationController
 
     def __init__(self, bot: SGGWBot) -> None:
         self.__bot = bot
-        self.__ctrl = ProjectController(bot)
-        super().__init__(self.__ctrl, self._project)
+        self.__ctrl = InformationController(bot)
+        super().__init__(self.__ctrl, self._information)
 
     @nextcord.slash_command(
-        name='project',
-        description='Embed with project.',
+        name='information',
+        description='Embed with information.',
         dm_permission=False,
         default_member_permissions=1 << 17  # Mention everyone
     )
-    async def _project(self, *_) -> None:
+    async def _information(self, *_) -> None:
         pass
 
-    @_project.subcommand(name='change_thumbnail', description='Change thumbnail')
+    @_information.subcommand(name='change_thumbnail', description='Change thumbnail')
     @SlashCommandUtils.log()
     async def _change_thumbnail(
         self,
         interaction: Interaction,
         url: str = SlashOption(
-            description='Emoji url (prefered page: \'emoji.gg\')',
+            description='Emoji url',
             required=True
         )
     ) -> None:
         await self.__ctrl.change_thumbnail(interaction, url)
 
-    @_project.subcommand(name='set_json', description='Set json with embed fields')
+    @_information.subcommand(name='set_json', description='Set json with embed fields')
     @SlashCommandUtils.log()
     async def _set_fields(
         self,
         interaction: Interaction,
         file: nextcord.Attachment = SlashOption(
             description='JSON file with fields, '
-            'downloaded from `/project get_json` and updated'
+            'downloaded from `/informations get_json` and updated'
         )
     ) -> None:
-        await self.__ctrl.set_fields_from_json(interaction, file, 'project')
+        await self.__ctrl.set_fields_from_json(interaction, file, 'informations')
 
 
 def setup(bot: SGGWBot):
-    bot.add_cog(ProjectCog(bot))
+    bot.add_cog(InformationCog(bot))

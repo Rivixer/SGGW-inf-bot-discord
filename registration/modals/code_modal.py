@@ -7,7 +7,7 @@ from nextcord.member import Member
 
 from utils.console import Console
 
-from ..registered_users_controller import RegisteredUsersContorller
+from ..registered_users_controller import RegisteredUsersController
 from ..registration_exceptions import RegistrationError
 
 
@@ -131,7 +131,7 @@ class CodeModal(Modal):
                 other_info['Another account reason'] = another_account_input.value
 
         try:
-            await RegisteredUsersContorller.register_user(
+            await RegisteredUsersController.register_user(
                 interaction.user, self.__index_no, other_info  # type: ignore
             )
         except RegistrationError as e:

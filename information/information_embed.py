@@ -4,12 +4,12 @@ from nextcord.emoji import Emoji
 
 from models.embed_model import EmbedModel
 
-from .informations_model import InformationsModel
+from .information_model import InformationModel
 
 
-class InformationsEmbed(EmbedModel):
+class InformationEmbed(EmbedModel):
 
-    _model: InformationsModel
+    _model: InformationModel
 
     def generate_embed(self) -> Embed:
         return super().generate_embed()
