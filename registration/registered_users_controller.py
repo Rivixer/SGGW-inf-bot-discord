@@ -247,16 +247,9 @@ class RegisteredUsersController(ABC):
         for k, v in info.items():
             embed.add_field(name=k, value=v)
 
-        # We don't need to send the bot parameter,
-        # because we don't use it,
-        # and the model will be deleted at the end of this function
-        roles_model = AssignRoleModel(None)  # type: ignore
-        role_ids = list(map(lambda i: i.id, roles_model.roles))
-
-        for role in member.roles:
-            if role.id in role_ids:
-                embed.add_field(name='Rola', value=role.mention, inline=False)
-                break
+        everyone = member.guild.default_role
+        roles_info = [r.mention for r in member.roles if r != everyone][::-1]
+        embed.add_field(name='Role', value=', '.join(roles_info), inline=False)
 
         return embed
 
