@@ -30,7 +30,7 @@ class _MemberInfo:
         return self.member.id
 
 
-class RegisteredUsersContorller(ABC):
+class RegisteredUsersController(ABC):
 
     @staticmethod
     def __get_file_path() -> Path:
