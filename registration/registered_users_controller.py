@@ -10,6 +10,7 @@ import os
 from nextcord.channel import TextChannel
 from nextcord.message import Attachment
 from nextcord.member import Member
+from nextcord.colour import Colour
 from nextcord.embeds import Embed
 from nextcord.guild import Guild
 import nextcord
@@ -125,11 +126,25 @@ class RegisteredUsersController(ABC):
             channel = member.guild.get_channel(channel_id)
             if not isinstance(channel, TextChannel):
                 return
-            await channel.send(
-                f'**Użytkownik {member.display_name}#{member.discriminator} '
-                f'zarejestrował się!** (index={index_no}) ' +
-                (f'\n{other_info}' if other_info else '')
+
+            embed = Embed(
+                title='Nowa rejestracja!',
+                description=member.mention,
+                colour=Colour.fuchsia(),
+            ).add_field(
+                name='Name', value=f'{member.name}#{member.discriminator}'
+            ).add_field(
+                name='Nick', value=member.display_name
+            ).add_field(
+                name='Indeks', value=index_no
+            ).set_thumbnail(
+                url=member.avatar.url if member.avatar else member.default_avatar.url
             )
+
+            for k, v in other_info.items():
+                embed.add_field(name=k, value=v)
+
+            await channel.send(embed=embed)
 
         await asyncio.gather(
             member.add_roles(verified_role),
