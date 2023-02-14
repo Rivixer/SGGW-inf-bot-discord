@@ -88,7 +88,7 @@ class RegistrationCog(commands.Cog):
         interaction: Interaction,
         index_no: str = SlashOption(
             name='nr_indeksu',
-            description='Twój nr indeksu. Same liczby np. `123456`.',
+            description='Twój nr indeksu. Same cyfry np. `123456`.',
             min_length=6,
             max_length=6
         )
