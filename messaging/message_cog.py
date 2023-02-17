@@ -174,7 +174,9 @@ class MessageCog(commands.Cog):
             message = await self.__get_message(interaction, message_id)
 
             if text is not None:
-                message_kwargs['content'] = text
+                converted_text = text.replace('\\n', '\n')
+                converted_text = converted_text.replace('\\t', '\t')
+                message_kwargs['content'] = converted_text
 
             if file_embed is not None:
                 embed = await EmbedUtils.convert_attachment_to_embed(file_embed)
