@@ -258,6 +258,59 @@ class MessageCog(commands.Cog):
                 ephemeral=True
             )
 
+    @_message.subcommand(
+        name='add_reaction',
+        description='Add a reaction to the message. '
+        'If a reaction is added, remove it.'
+    )
+    @SlashCommandUtils.log(show_channel=True)
+    async def _add_reaction(
+        self,
+        interaction: Interaction,
+        message_id: str = SlashOption(
+            description='ID of the message',
+            required=True,
+        ),
+        emoji: str = SlashOption(
+            description='Emoji (emoji or its ID) to be added to the message',
+            required=True,
+        ),
+    ) -> ...:
+        try:
+            guild: nextcord.Guild = interaction.guild  # type: ignore
+            if emoji.isdigit():
+                _emoji = await guild.fetch_emoji(int(emoji))
+            else:
+                _emoji = emoji
+
+            channel = interaction.channel
+            if not isinstance(channel, TextChannel):
+                raise TypeError('Channel must be TextChannel')
+
+            message = await self.__get_message(interaction, message_id)
+
+            for reaction in message.reactions:
+                if reaction.emoji != _emoji:
+                    continue
+                async for user in reaction.users():
+                    if user == self.__bot.user:
+                        await message.remove_reaction(_emoji, user)
+                        return await interaction.response.send_message(
+                            f'Pomyślnie usunięto z wiadomości reakcję: {_emoji}',
+                            ephemeral=True
+                        )
+
+            await message.add_reaction(_emoji)
+            await interaction.response.send_message(
+                f'Pomyślnie dodano do wiadomości reakcję: {_emoji}',
+                ephemeral=True
+            )
+        except Exception as e:
+            await interaction.response.send_message(
+                f'**[BŁĄD]** {e}',
+                ephemeral=True
+            )
+
     @_message.subcommand(name='get_embed', description='Get an embed from the message.')
     @SlashCommandUtils.log(show_channel=True)
     async def _get_embed(
