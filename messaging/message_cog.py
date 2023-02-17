@@ -85,7 +85,7 @@ class MessageCog(commands.Cog):
         ),
     ) -> ...:
         message_kwargs: dict[str, Any] = {
-            'content': text
+            'content': text.replace('\\n', '\n').replace('\\t', '\t')
         }
 
         try:
