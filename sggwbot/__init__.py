@@ -1,0 +1,5 @@
+__title__ = "SGGW-inf-bot-discord"
+__author__ = "Wiktor Jaworski"
+__license__ = "MIT"
+__copyright__ = "Copyright 2023 Wiktor Jaworski"
+__version__ = "0.6.0a"
