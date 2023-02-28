@@ -1,31 +1,29 @@
 from __future__ import annotations
 
+import json
+import re
 from abc import ABC
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
-import json
-import re
+from typing import TYPE_CHECKING, Any
 
-from nextcord.channel import TextChannel
-from nextcord.errors import DiscordException
-from nextcord.embeds import Embed
 import nextcord
+from nextcord.channel import TextChannel
+from nextcord.embeds import Embed
+from nextcord.errors import DiscordException
 
 from .console import Console
 from .errors import UpdateEmbedError
 
 if TYPE_CHECKING:
     from nextcord.emoji import Emoji
-    from nextcord.message import Attachment
-    from nextcord.message import Message
+    from nextcord.message import Attachment, Message
 
-    from sggw_bot import SGGWBot
+    from .sggw_bot import SGGWBot
 
 
 class _PathUtils(ABC):
-
     @staticmethod
     def convert_classname_to_filename(obj: object) -> str:
         """Converts the classname to a filename.
@@ -47,7 +45,7 @@ class _PathUtils(ABC):
             The class that its name will be formatted.
         """
 
-        return re.sub('(?<!^)(?=[A-Z])', '_', obj.__class__.__name__).lower()
+        return re.sub("(?<!^)(?=[A-Z])", "_", obj.__class__.__name__).lower()
 
 
 class Model(ABC):
@@ -66,7 +64,7 @@ class Model(ABC):
         The data loaded from the `settings.json` file.
     """
 
-    __slots__ = ('_data',)
+    __slots__ = ("_data",)
 
     _data: dict[str, Any]
 
@@ -75,7 +73,7 @@ class Model(ABC):
 
     @property
     def _settings_directory(self) -> Path:
-        directory = Path('data/settings/')
+        directory = Path("data/settings/")
         if not directory.exists():
             directory.mkdir()
             Console.warn(f"The directory '{directory}' has been created.")
@@ -83,17 +81,17 @@ class Model(ABC):
 
     @property
     def _settings_path(self) -> Path:
-        filename = _PathUtils.convert_classname_to_filename(self) + '_settings'
+        filename = _PathUtils.convert_classname_to_filename(self) + "_settings"
 
-        path = self._settings_directory / f'{filename}.json'
+        path = self._settings_directory / f"{filename}.json"
         if not path.exists():
-            with open(path, 'w', encoding='utf-8') as f:
+            with open(path, "w", encoding="utf-8") as f:
                 json.dump({}, f)
             Console.warn(f"The file '{path}' has been created.")
         return path
 
     def _load_settings(self) -> None:
-        with open(self._settings_path, 'r', encoding='utf-8') as f:
+        with open(self._settings_path, "r", encoding="utf-8") as f:
             self._data = json.load(f)
 
     @property
@@ -113,7 +111,7 @@ class Model(ABC):
         JSONDecodeError
             Json file is corrupted.
         """
-        with open(self._settings_path, 'r', encoding='utf-8') as f:
+        with open(self._settings_path, "r", encoding="utf-8") as f:
             self._data = json.load(f)
 
     def update_settings(self, key: str, value: Any, *, force: bool = False) -> None:
@@ -137,16 +135,14 @@ class Model(ABC):
         """
 
         if not force and key not in self._data.keys():
-            raise KeyError(
-                f'Invalid key ({key}) when updating {self._settings_path}.'
-            )
+            raise KeyError(f"Invalid key ({key}) when updating {self._settings_path}.")
 
         self._data[key] = value
-        with open(self._settings_path, 'w', encoding='utf-8') as f:
+        with open(self._settings_path, "w", encoding="utf-8") as f:
             json.dump(self._data, f, ensure_ascii=True, indent=4, default=str)
 
 
-@dataclass(slots=True)
+@dataclass
 class WithBot(ABC):
     """Stores the bot object.
 
@@ -215,7 +211,7 @@ class EmbedModel(ABC):
 
     @property
     def _embeds_directory(self) -> Path:
-        directory = Path('data/embeds/')
+        directory = Path("data/embeds/")
         if not directory.exists():
             directory.mkdir()
             Console.warn(f"The directory '{directory}' has been created.")
@@ -225,10 +221,10 @@ class EmbedModel(ABC):
     def embed_path(self) -> Path:
         """Path where the embed is stored."""
         filename = _PathUtils.convert_classname_to_filename(self)
-        path = self._embeds_directory / f'{filename}.json'
+        path = self._embeds_directory / f"{filename}.json"
         if not path.exists():
             path.touch()
-            with open(path, 'w', encoding='utf-8') as f:
+            with open(path, "w", encoding="utf-8") as f:
                 json.dump({}, f)
             Console.warn(f"The file '{path}' has been created.")
         return path
@@ -268,14 +264,14 @@ class EmbedModel(ABC):
             and values represent substitutions.
         """
 
-        with open(self.embed_path, 'r', encoding='utf-8') as f:
+        with open(self.embed_path, "r", encoding="utf-8") as f:
             raw_data: str = f.read()
 
         current_time = datetime.now().strftime("%d.%m.%Y %H:%M")
-        raw_data = raw_data.replace(r'{CURRENT_TIME}', current_time)
+        raw_data = raw_data.replace(r"{CURRENT_TIME}", current_time)
 
         for k, v in replaces.items():
-            raw_data = raw_data.replace(f'{{{k}}}', str(v))
+            raw_data = raw_data.replace(f"{{{k}}}", str(v))
 
         data: dict = json.loads(raw_data)
         return Embed.from_dict(data)
@@ -309,8 +305,8 @@ class ControllerWithEmbed(Controller, ABC):
     @property
     def message_id(self) -> int | None:
         """Message ID with an embed."""
-        embed_data: dict[str, int] = self.model.data.get('embed_message', {})
-        return embed_data.get('message_id')
+        embed_data: dict[str, int] = self.model.data.get("embed_message", {})
+        return embed_data.get("message_id")
 
     async def _add_reactions_to_message(self, message: Message) -> None:
         for reaction in self._embed_model.reactions:
@@ -398,16 +394,13 @@ class ControllerWithEmbed(Controller, ABC):
             Saving the attachment failed.
         """
 
-        if file.filename[-5].lower() != '.json':
-            raise TypeError('The attachment must have a `.json` extension')
+        if file.filename[-5].lower() != ".json":
+            raise TypeError("The attachment must have a `.json` extension")
         await file.save(self._embed_model.embed_path)
 
     def _save_message_data_in_settings(self, message: Message) -> None:
-        data = {
-            "channel_id": message.channel.id,
-            "message_id": message.id
-        }
-        self.model.update_settings('embed_message', data, force=True)
+        data = {"channel_id": message.channel.id, "message_id": message.id}
+        self.model.update_settings("embed_message", data, force=True)
 
     async def _get_message_from_settings(self) -> Message:
         """|coro|
@@ -423,13 +416,13 @@ class ControllerWithEmbed(Controller, ABC):
             Message cannot be fetched.
         """
 
-        data: dict[str, int] = self.model.data.get('embed_message', {})
-        channel_id = data.get('channel_id', -1)
-        msg_id = data.get('message_id', -1)
+        data: dict[str, int] = self.model.data.get("embed_message", {})
+        channel_id = data.get("channel_id", -1)
+        msg_id = data.get("message_id", -1)
         channel = self._embed_model.bot.get_channel(channel_id)
 
         if not isinstance(channel, TextChannel):
-            raise TypeError('Channel must be TextChannel')
+            raise TypeError("Channel must be TextChannel")
 
         message = await channel.fetch_message(msg_id)
         return message

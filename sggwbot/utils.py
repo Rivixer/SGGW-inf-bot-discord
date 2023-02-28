@@ -1,47 +1,45 @@
+import asyncio
+import datetime as dt
+import functools
+import os
+import traceback
 from abc import ABC
 from pathlib import Path
 from typing import (
+    TYPE_CHECKING,
     Any,
     Awaitable,
     Callable,
     Concatenate,
     Literal,
     ParamSpec,
-    TYPE_CHECKING,
 )
-import asyncio
-import datetime as dt
-import functools
-import os
-import traceback
 
+import nextcord
 from nextcord.channel import TextChannel
 from nextcord.interactions import Interaction
-import nextcord
 
-from sggwbot.console import Console
-from sggwbot.console import FontColour
+from sggwbot.console import Console, FontColour
 
 if TYPE_CHECKING:
     from nextcord.member import Member
 
-_P = ParamSpec('_P')
+
+_P = ParamSpec("_P")
 _FUNC = Callable[Concatenate[Any, Interaction, _P], Awaitable[Any]]
 
 
 class InteractionUtils(ABC):
-
     @staticmethod
     def _command_name(interaction: Interaction) -> str:
         command = interaction.application_command
         if command is None:
-            raise TypeError('Command was None')
+            raise TypeError("Command was None")
         return command.qualified_name
 
     @staticmethod
     def with_log(
-        colour: FontColour = FontColour.PINK,
-        show_channel: bool = False
+        colour: FontColour = FontColour.PINK, show_channel: bool = False
     ) -> Callable[[_FUNC], _FUNC]:
         """Prints to the console information about
             the user who ran a decorated command.
@@ -68,28 +66,29 @@ class InteractionUtils(ABC):
                 *args: _P.args,
                 **kwargs: _P.kwargs,
             ) -> Awaitable[Any]:
-
-                type_info = 'SLASH_COMMAND'
+                type_info = "SLASH_COMMAND"
                 command_name = InteractionUtils._command_name(interaction)
                 user: Member = interaction.user  # type: ignore
-                user_info = f'{user.display_name} ({user.name}#{user.discriminator})'
-                kwargs_info = ' '.join(
-                    f'{k}:{v}' for k, v in kwargs.items()
-                    if v is not None
+                user_info = f"{user.display_name} ({user.name}#{user.discriminator})"
+                kwargs_info = " ".join(
+                    f"{k}:{v}" for k, v in kwargs.items() if v is not None
                 )
 
                 if show_channel:
                     channel = interaction.channel
                     if isinstance(channel, TextChannel):
-                        type_info += f'/{channel.name}'
+                        type_info += f"/{channel.name}"
 
                 Console.specific(
-                    f'{user_info} used /{command_name} {kwargs_info}',
-                    type_info, colour,
+                    f"{user_info} used /{command_name} {kwargs_info}",
+                    type_info,
+                    colour,
                 )
 
                 return await func(self, interaction, *args, **kwargs)
+
             return wrapper
+
         return decorator
 
     @staticmethod
@@ -166,7 +165,6 @@ class InteractionUtils(ABC):
                 *args: _P.args,
                 **kwargs: _P.kwargs,
             ) -> Awaitable[Any] | None:
-
                 if before:
                     await interaction.response.send_message(
                         before.format(**kwargs), ephemeral=True
@@ -184,14 +182,14 @@ class InteractionUtils(ABC):
                         nextcord.DiscordException,
                         *(additional_errors or []),
                     ) as e:
-                        err_msg = f'** [ERROR] ** {e}'
+                        err_msg = f"** [ERROR] ** {e}"
 
                         if with_traceback:
                             trcbck = traceback.format_exc()
-                            err_msg += f'\n```py\n{trcbck}```'
+                            err_msg += f"\n```py\n{trcbck}```"
 
                         if len(err_msg) > 2000:
-                            err_msg = f'{err_msg[:496]}\n\n...\n\n{err_msg[-1496:]}'
+                            err_msg = f"{err_msg[:496]}\n\n...\n\n{err_msg[-1496:]}"
 
                         if not interaction.response.is_done():
                             await interaction.response.send_message(
@@ -202,7 +200,7 @@ class InteractionUtils(ABC):
                             await msg.edit(content=err_msg)
                         comm_name = InteractionUtils._command_name(interaction)
                         return Console.error(
-                            f'Error while using /{comm_name}.', exception=e
+                            f"Error while using /{comm_name}.", exception=e
                         )
                 else:
                     result = await func(self, interaction, *args, **kwargs)
@@ -214,16 +212,17 @@ class InteractionUtils(ABC):
                         )
                     else:
                         msg = await interaction.original_message()
-                        if not msg.content.startswith('**[ERROR]**'):
+                        if not msg.content.startswith("**[ERROR]**"):
                             await msg.edit(content=after.format(**kwargs))
 
                 return result
+
             return wrapper
+
         return decorator
 
 
 class ProjectUtils:
-
     @staticmethod
     def lines_of_code() -> int:
         """Returns the number of lines of code (.py), including blank lines.
@@ -232,8 +231,8 @@ class ProjectUtils:
         """
 
         try:
-            with open('.gitignore', 'r', encoding='utf-8') as f:
-                ignored = f.read().split('\n')
+            with open(".gitignore", "r", encoding="utf-8") as f:
+                ignored = f.read().split("\n")
         except OSError as e:
             ignored = []
             Console.warn(
@@ -241,7 +240,7 @@ class ProjectUtils:
                 exception=e,
             )
 
-        ignored.extend(['.git', '.gitignore'])
+        ignored.extend([".git", ".gitignore"])
         result = [0]
 
         def count(path: Path, result: list[int]) -> None:
@@ -251,13 +250,13 @@ class ProjectUtils:
                 current_path = path / item
                 if current_path.is_dir():
                     count(current_path, result)
-                if item.endswith('.py'):
+                if item.endswith(".py"):
                     try:
-                        with open(current_path, 'r', encoding='utf-8') as f:
+                        with open(current_path, "r", encoding="utf-8") as f:
                             lines = f.readlines()
                     except OSError as e:
                         Console.warn(
-                            f'Cannot open {current_path} to count lines of code.',
+                            f"Cannot open {current_path} to count lines of code.",
                             exception=e,
                         )
                     else:
@@ -279,7 +278,7 @@ async def wait_until_midnight() -> Literal[True]:
         hour=0,
         minute=0,
         second=0,
-        microsecond=0
+        microsecond=0,
     )
 
     time_until_midnight = midnight - today
