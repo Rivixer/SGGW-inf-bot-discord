@@ -1,0 +1,6 @@
+[report]
+exclude_lines = 
+    pragma: no cover
+    if TYPE_CHECKING:
+    bot.add_cog
+    @nextcord.slash_command
