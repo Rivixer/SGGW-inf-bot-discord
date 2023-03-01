@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+"""A module to control the bot's status."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -18,6 +21,8 @@ if TYPE_CHECKING:
 
 
 class StatusCog(commands.Cog):
+    """A cog to control the bot's status."""
+
     __slots__ = ("_bot",)
 
     _STATUS_PATH = Path("data/status.txt")
@@ -28,6 +33,7 @@ class StatusCog(commands.Cog):
 
     @commands.Cog.listener(name="on_ready")
     async def _on_ready(self) -> None:
+        """Sets the status when the bot is ready."""
         activity_type, text = self._get_data_from_file()
         await self._set_status(activity_type, text)
 
@@ -42,7 +48,7 @@ class StatusCog(commands.Cog):
     @InteractionUtils.with_log()
     async def _status(
         self,
-        _: Interaction,
+        interaction: Interaction,  # pylint: disable=unused-argument
         text: str,
         activity_type: str = SlashOption(
             choices=[
@@ -53,6 +59,21 @@ class StatusCog(commands.Cog):
             ],
         ),
     ) -> None:
+        """Changes the bot's status.
+
+        Parameters
+        ----------
+        interaction: :class:`Interaction`
+            The interaction that triggered the command.
+        text: :class:`str`
+            The text to display in the status.
+        activity_type: :class:`str`
+            The type of the activity. Can be one of the following:
+            - playing
+            - listening
+            - watching
+            - streaming
+        """
         await self._set_status(ActivityType[activity_type], text)
 
     def _get_data_from_file(self) -> tuple[ActivityType, str]:
@@ -81,5 +102,5 @@ class StatusCog(commands.Cog):
 
 
 def setup(bot: SGGWBot):
-    """Adds StatusCog to the bot."""
+    """Loads the StatusCog cog."""
     bot.add_cog(StatusCog(bot))

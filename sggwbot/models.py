@@ -1,7 +1,27 @@
+# SPDX-License-Identifier: MIT
+"""A module containing base classes for models and controllers.
+
+Examples
+-------- ::
+
+    class ClassModel(Model):
+        def __init__(self) -> None:
+            super().__init__()
+
+    class ClassController(Controller):
+        def __init__(self, model: Model) -> None:
+            super().__init__(model)
+
+    class ClassEmbedModel(EmbedModel):
+        def __init__(self, model: Model, guild: Guild) -> None:
+            super().__init__(model, guild)
+
+
+"""
+
 from __future__ import annotations
 
 import json
-import re
 from abc import ABC
 from dataclasses import dataclass
 from datetime import datetime
@@ -15,37 +35,13 @@ from nextcord.errors import DiscordException
 
 from .console import Console
 from .errors import UpdateEmbedError
+from .utils import PathUtils
 
 if TYPE_CHECKING:
     from nextcord.emoji import Emoji
     from nextcord.message import Attachment, Message
 
     from .sggw_bot import SGGWBot
-
-
-class _PathUtils(ABC):
-    @staticmethod
-    def convert_classname_to_filename(obj: object) -> str:
-        """Converts the classname to a filename.
-
-        Makes all letters as lower and add underscore between words.
-
-        Examples
-        -------- ::
-
-            class TestClass:
-                pass
-
-            test = TestClass()
-            convert_classname_to_filename(test)  # 'test_class'
-
-        Parameters
-        ----------
-        obj: :class:`object`
-            The class that its name will be formatted.
-        """
-
-        return re.sub("(?<!^)(?=[A-Z])", "_", obj.__class__.__name__).lower()
 
 
 class Model(ABC):
@@ -81,7 +77,7 @@ class Model(ABC):
 
     @property
     def _settings_path(self) -> Path:
-        filename = _PathUtils.convert_classname_to_filename(self) + "_settings"
+        filename = PathUtils.convert_classname_to_filename(self) + "_settings"
 
         path = self._settings_directory / f"{filename}.json"
         if not path.exists():
@@ -142,31 +138,6 @@ class Model(ABC):
             json.dump(self._data, f, ensure_ascii=True, indent=4, default=str)
 
 
-@dataclass
-class WithBot(ABC):
-    """Stores the bot object.
-
-    Examples
-    -------- ::
-
-        class ClassWithBot(WithBot):
-            def __init__(self, bot: SGGWBot) -> None:
-                super().__init__(bot)
-
-        class ClassModelWithBot(Model, WithBot):
-            def __init__(self, bot: SGGWBot) -> None:
-                Model.__init__(self)
-                WithBot.__init__(self, bot)
-
-    Attributes
-    ----------
-    bot: :class:`SGGWBot`
-        The Discord bot instance.
-    """
-
-    bot: SGGWBot
-
-
 @dataclass(slots=True)
 class Controller(ABC):
     """Base class for Controller classes.
@@ -219,8 +190,8 @@ class EmbedModel(ABC):
 
     @property
     def embed_path(self) -> Path:
-        """Path where the embed is stored."""
-        filename = _PathUtils.convert_classname_to_filename(self)
+        """Path to the `embed.json` file."""
+        filename = PathUtils.convert_classname_to_filename(self)
         path = self._embeds_directory / f"{filename}.json"
         if not path.exists():
             path.touch()
@@ -295,12 +266,12 @@ class ControllerWithEmbed(Controller, ABC):
         Model of the embed.
     """
 
-    _embed_model: EmbedModel
+    embed_model: EmbedModel
     model: Model
 
     def __init__(self, model: Model, embed_model: EmbedModel) -> None:
         super().__init__(model)
-        self._embed_model = embed_model
+        self.embed_model = embed_model
 
     @property
     def message_id(self) -> int | None:
@@ -309,7 +280,7 @@ class ControllerWithEmbed(Controller, ABC):
         return embed_data.get("message_id")
 
     async def _add_reactions_to_message(self, message: Message) -> None:
-        for reaction in self._embed_model.reactions:
+        for reaction in self.embed_model.reactions:
             await message.add_reaction(reaction)
 
     async def send_embed(self, channel: TextChannel) -> Message:
@@ -330,7 +301,7 @@ class ControllerWithEmbed(Controller, ABC):
             Sent message.
         """
 
-        embed = self._embed_model.generate_embed()
+        embed = self.embed_model.generate_embed()
         message = await channel.send(embed=embed)
         self._save_message_data_in_settings(message)
         await self._add_reactions_to_message(message)
@@ -350,8 +321,8 @@ class ControllerWithEmbed(Controller, ABC):
 
         Raises
         ------
-        ~errors.UpdateEmbedError
-            Updating embed failed.
+        UpdateEmbedError
+            The message cannot be updated.
 
         Returns
         -------
@@ -362,7 +333,7 @@ class ControllerWithEmbed(Controller, ABC):
         try:
             self.model.reload_settings()
             message = await self._get_message_from_settings()
-            embed = self._embed_model.generate_embed()
+            embed = self.embed_model.generate_embed()
             message = await message.edit(embed=embed)
             if reload_reactions:
                 await message.clear_reactions()
@@ -374,7 +345,7 @@ class ControllerWithEmbed(Controller, ABC):
     @property
     def embed_json(self) -> nextcord.File:
         """:class:`nextcord.File` with the embed json."""
-        return nextcord.File(self._embed_model.embed_path)
+        return nextcord.File(self.embed_model.embed_path)
 
     async def set_embed_json(self, file: Attachment) -> None:
         """|coro|
@@ -396,7 +367,7 @@ class ControllerWithEmbed(Controller, ABC):
 
         if file.filename[-5].lower() != ".json":
             raise TypeError("The attachment must have a `.json` extension")
-        await file.save(self._embed_model.embed_path)
+        await file.save(self.embed_model.embed_path)
 
     def _save_message_data_in_settings(self, message: Message) -> None:
         data = {"channel_id": message.channel.id, "message_id": message.id}
@@ -419,7 +390,7 @@ class ControllerWithEmbed(Controller, ABC):
         data: dict[str, int] = self.model.data.get("embed_message", {})
         channel_id = data.get("channel_id", -1)
         msg_id = data.get("message_id", -1)
-        channel = self._embed_model.bot.get_channel(channel_id)
+        channel = self.embed_model.bot.get_channel(channel_id)
 
         if not isinstance(channel, TextChannel):
             raise TypeError("Channel must be TextChannel")

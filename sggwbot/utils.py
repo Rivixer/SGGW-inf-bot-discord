@@ -1,7 +1,11 @@
+# SPDX-License-Identifier: MIT
+"""A module containing utility classes and functions."""
+
 import asyncio
 import datetime as dt
 import functools
 import os
+import re
 import traceback
 from abc import ABC
 from pathlib import Path
@@ -30,8 +34,14 @@ _FUNC = Callable[Concatenate[Any, Interaction, _P], Awaitable[Any]]
 
 
 class InteractionUtils(ABC):
+    """A class containing static methods that can be used to decorate commands.
+
+    This class should not be instantiated.
+    """
+
     @staticmethod
     def _command_name(interaction: Interaction) -> str:
+        """Returns the name of the command that was run."""
         command = interaction.application_command
         if command is None:
             raise TypeError("Command was None")
@@ -41,21 +51,18 @@ class InteractionUtils(ABC):
     def with_log(
         colour: FontColour = FontColour.PINK, show_channel: bool = False
     ) -> Callable[[_FUNC], _FUNC]:
-        """Prints to the console information about
-            the user who ran a decorated command.
+        """Logs information about the user who ran a decorated command to the console.
 
-        This decorator should be placed after
-            decorators that set a function as a command.
+        This decorator should be placed after decorators that set a function as a command.
 
-        If the command is a subcommand, its name
-            will be preceded by its parent name.
+        If the command is a subcommand, its name will be preceded by its parent name.
 
         Parameters
-        ---------
-        colour: `FontColour`
-            The console message colour.
-        show_channel: `bool`
-            If True, the channel ID will be printed in the console.
+        ----------
+        colour: :class:`FontColour`
+            The colour of the log message.
+        show_channel: :class:`bool`
+            Whether to show the channel name in the log message.
         """
 
         def decorator(func: _FUNC) -> _FUNC:
@@ -100,21 +107,11 @@ class InteractionUtils(ABC):
         with_traceback: bool = True,
         additional_errors: list[type[Exception]] | None = None,
     ) -> Callable[[_FUNC], _FUNC]:
-        """Responds to the interaction with additional information.
+        """Responds to the interaction an ephemeral message to the user who ran a decorated command.
+
+        This decorator should be placed after decorators that set a function as a command.
 
         If the interaction has already been responded to, it edits the message content.
-
-        If an error occurs and `catch_errors` is ``True``,
-        the traceback will be included in the message response.
-
-        Caught errors:
-        - AttributeError
-        - IndexError
-        - KeyError
-        - TypeError
-        - ValueError
-        - ~nextcord.DiscordException
-        - `additional_errors` sent in parameters
 
         Examples
         --------
@@ -141,20 +138,35 @@ class InteractionUtils(ABC):
 
         Parameters
         ----------
-        before: :class:`str`|`None`
-            The message that will be printed in the interaction response
-            before the command is executing.  Defaults to ``None``.
-        after: :class:`str`|`None`
-            The content that will be printed in the interaction response
-            after the command is executed.  Defaults to ``None``.
+        before: :class:`str`
+            The message to send before the command is run.
+        after: :class:`str`
+            The message to send after the command is run.
         catch_errors: :class:`bool`
-            Whether to catch errors and throw an exception in the interaction.
+            Whether to catch errors that occur while running the command.
             Defaults to ``False``.
         with_traceback: :class:`bool`
-            Wheter to print the traceback in interaction response
-            if an error was caught.  Defaults to ``True``.
-        additional_errors: list[type[`Exception`]]
-            The additional errors that will also be caught.
+            Whether to include a traceback in the error message.
+            Defaults to ``True``.
+        additional_errors: `list[type[:class:Exception]]` | `None`
+            A list of additional errors to catch.
+            Defaults to ``None``.
+
+        Raises
+        ------
+        TypeError
+            If the command is not a slash command.
+
+        Notes
+        -----
+        If `catch_errors` is ``True``, the following errors will be caught:
+        - :class:`AttributeError`
+        - :class:`IndexError`
+        - :class:`KeyError`
+        - :class:`TypeError`
+        - :class:`ValueError`
+        - :class:`nextcord.DiscordException`
+        - Any errors in `additional_errors`
         """
 
         def decorator(func: _FUNC) -> _FUNC:
@@ -222,12 +234,62 @@ class InteractionUtils(ABC):
         return decorator
 
 
-class ProjectUtils:
+class PathUtils(ABC):  # pylint: disable=too-few-public-methods
+    """A class containing utility methods for paths."""
+
+    @staticmethod
+    def convert_classname_to_filename(obj: object) -> str:
+        """Converts a class name to a filename.
+
+        Parameters
+        ----------
+        obj: :class:`object`
+            The object to convert.
+
+        Returns
+        -------
+        :class:`str`
+            The converted class name.
+
+        Examples
+        -------- ::
+
+            class ClassFoo:
+                pass
+
+            obj = ClassFoo()
+            convert_classname_to_filename(obj)  # 'class_foo'
+
+        Notes
+        -----
+        This method is used to convert a class name to a filename
+        when saving a class to a file.
+        """
+
+        return re.sub("(?<!^)(?=[A-Z])", "_", obj.__class__.__name__).lower()
+
+
+class ProjectUtils(ABC):  # pylint: disable=too-few-public-methods
+    """A class containing utility methods for the project.
+
+    This class should not be instantiated.
+    """
+
     @staticmethod
     def lines_of_code() -> int:
-        """Returns the number of lines of code (.py), including blank lines.
+        """Returns the number of lines of code in the project.
 
-        Files contained in `.gitignore` will not be considered.
+        Returns
+        -------
+        :class:`int`
+            The number of lines of code in the project.
+
+        Notes
+        -----
+        This method counts lines of code in the project
+        by counting lines of code in all Python files
+        in the project directory except for the ones
+        that are ignored by the '.gitignore' file.
         """
 
         try:
@@ -268,7 +330,17 @@ class ProjectUtils:
 
 
 async def wait_until_midnight() -> Literal[True]:
-    """Asynchronous sleep until midnight."""
+    """|coro|
+
+    Waits until midnight and returns ``True``.
+
+    Examples
+    -------- ::
+
+        while await wait_until_midnight():
+            print("It's midnight!")
+    """
+
     today = dt.datetime.now()
     tomorrow = today + dt.timedelta(days=1)
     midnight = dt.datetime(
