@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: MIT
 """A module containing utility classes and functions."""
 
+from __future__ import annotations
+
 import asyncio
 import datetime as dt
 import functools
@@ -23,7 +25,7 @@ import nextcord
 from nextcord.channel import TextChannel
 from nextcord.interactions import Interaction
 
-from sggwbot.console import Console, FontColour
+from .console import Console, FontColour
 
 if TYPE_CHECKING:
     from nextcord.member import Member
@@ -241,6 +243,8 @@ class PathUtils(ABC):  # pylint: disable=too-few-public-methods
     def convert_classname_to_filename(obj: object) -> str:
         """Converts a class name to a filename.
 
+        If classname ends with 'Model', the last word is removed.
+
         Parameters
         ----------
         obj: :class:`object`
@@ -266,7 +270,10 @@ class PathUtils(ABC):  # pylint: disable=too-few-public-methods
         when saving a class to a file.
         """
 
-        return re.sub("(?<!^)(?=[A-Z])", "_", obj.__class__.__name__).lower()
+        ret = re.sub("(?<!^)(?=[A-Z])", "_", obj.__class__.__name__).lower()
+        if ret.endswith("_model"):
+            return "_".join(ret.split("_")[:-1])
+        return ret
 
 
 class ProjectUtils(ABC):  # pylint: disable=too-few-public-methods
@@ -335,7 +342,15 @@ async def wait_until_midnight() -> Literal[True]:
     Waits until midnight and returns ``True``.
 
     Examples
-    -------- ::
+    --------
+
+    Run a code at midnight: ::
+
+        async def foo():
+            await wait_until_midnight()
+            print("It's midnight!")
+
+    Run a code every midnight: ::
 
         while await wait_until_midnight():
             print("It's midnight!")
