@@ -16,3 +16,7 @@ class ChangeMaxGroupsError(SGGWBotError):
 
 class RegistrationError(SGGWBotError):
     """Registration failed."""
+
+
+class AttachmentError(SGGWBotError):
+    """Attachment error."""
