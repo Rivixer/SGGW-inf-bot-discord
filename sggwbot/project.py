@@ -22,6 +22,7 @@ from nextcord.message import Attachment
 
 import sggwbot
 
+from .console import Console
 from .errors import UpdateEmbedError
 from .models import ControllerWithEmbed, EmbedModel, Model
 from .utils import InteractionUtils, ProjectUtils
@@ -171,13 +172,13 @@ class ProjectCog(commands.Cog):
 
         This task is run once when the bot is started.
 
-        If the embed cannot be updated, the error is ignored.
+        If the embed cannot be updated, a warning is logged.
         """
         await self._bot.wait_until_ready()
         try:
             await self._ctrl.update_embed()
-        except UpdateEmbedError:
-            pass
+        except UpdateEmbedError as e:
+            Console.warn("Updating the project embed failed.", exception=e)
 
 
 class ProjectModel(Model):
