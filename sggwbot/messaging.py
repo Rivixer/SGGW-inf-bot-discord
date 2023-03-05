@@ -133,7 +133,7 @@ class MessagingCog(commands.Cog):
             message_kwargs["file"] = await self._convert_attachment_to_file(attachment)
 
         if preview:
-            await interaction.response.send_message(**message_kwargs, ephemeral=True)
+            await interaction.send(**message_kwargs, ephemeral=True)
             return
 
         await channel.send(**message_kwargs)
@@ -335,9 +335,10 @@ class MessagingCog(commands.Cog):
         embed = message.embeds[0]
         embed_json = embed.to_dict()
 
-        await interaction.response.send_message(
+        msg = await interaction.original_message()
+        await msg.edit(
             file=nextcord.File(
-                io.BytesIO(json.dumps(embed_json).encode("utf-8")),
+                io.BytesIO(json.dumps(embed_json, indent=4).encode("utf-8")),
                 filename="embed.json",
             )
         )

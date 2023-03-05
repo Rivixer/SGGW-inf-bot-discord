@@ -132,9 +132,8 @@ class ProjectCog(commands.Cog):
         interaction: :class:`Interaction`
             The interaction that triggered the command.
         """
-        await interaction.response.edit_message(
-            file=self._ctrl.embed_json,
-        )
+        msg = await interaction.original_message()
+        await msg.edit(file=self._ctrl.embed_json)
 
     @_project.subcommand(
         name="set_json",

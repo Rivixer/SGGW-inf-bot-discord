@@ -21,6 +21,7 @@ Examples
 
 from __future__ import annotations
 
+import io
 import json
 from abc import ABC
 from dataclasses import dataclass
@@ -365,8 +366,12 @@ class ControllerWithEmbed(Controller, ABC):
             Saving the attachment failed.
         """
 
-        if file.filename[-5].lower() != ".json":
+        if not file.filename.lower().endswith(".json"):
             raise TypeError("The attachment must have a `.json` extension")
+        try:
+            json.loads(io.BytesIO(await file.read()).read().decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            raise TypeError("The attachment must be a valid JSON file") from e
         await file.save(self.embed_model.embed_path)
 
     def _save_message_data_in_settings(self, message: Message) -> None:

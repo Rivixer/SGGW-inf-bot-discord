@@ -127,9 +127,8 @@ class CalendarCog(commands.Cog):
         interaction: :class:`Interaction`
             The interaction that triggered the command.
         """
-        await interaction.response.edit_message(
-            file=self._ctrl.embed_json,
-        )
+        msg = await interaction.original_message()
+        await msg.edit(file=self._ctrl.embed_json)
 
     @_calendar.subcommand(
         name="set_json",
@@ -216,6 +215,7 @@ class CalendarCog(commands.Cog):
         description="Show events with indexes.",
     )
     @InteractionUtils.with_info(
+        before="Removing event with index **{index}**...",
         catch_errors=True,
         additional_errors=[UpdateEmbedError],
     )
@@ -238,10 +238,8 @@ class CalendarCog(commands.Cog):
 
         event = self._ctrl.remove_event(index)
         await self._ctrl.update_embed()
-        await interaction.response.send_message(
-            f"The event **{event}** has been removed.",
-            ephemeral=True,
-        )
+        msg = await interaction.original_message()
+        await msg.edit(f"The event **{event}** has been removed.")
 
     @tasks.loop(count=1)
     async def _remove_deprecated_events(self) -> None:

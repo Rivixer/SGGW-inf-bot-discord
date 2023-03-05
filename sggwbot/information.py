@@ -120,10 +120,8 @@ class InformationCog(commands.Cog):
         interaction: :class:`Interaction`
             The interaction that triggered the command.
         """
-        await interaction.response.edit_message(
-            content=None,
-            file=self._ctrl.embed_json,
-        )
+        msg = await interaction.original_message()
+        await msg.edit(content=None, file=self._ctrl.embed_json)
 
     @_information.subcommand(
         name="set_json",
