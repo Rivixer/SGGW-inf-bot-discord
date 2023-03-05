@@ -266,8 +266,11 @@ class Console:
         cls._append_to_file()
 
     @classmethod
-    def critical_error(cls, text: str, exception: Exception) -> NoReturn:
-        """Prints an error with traceback in red to the console and exits the program."""
+    def critical_error(cls, text: str, exception: Exception | None = None) -> NoReturn:
+        """Prints an error in red to the console and exits the program.
+
+        If an exception is given, it also prints the traceback.
+        """
         cls._logs.append(f'\n{" CRITICAL ERROR ":=^33}')
         cls._print_to_console(
             text,
@@ -278,7 +281,8 @@ class Console:
             exception=exception,
         )
         cls._logs.append(f"{exception}\n")
-        cls._logs.append(traceback.format_exc())
+        if exception:
+            cls._logs.append(traceback.format_exc())
         cls._append_to_file()
         sys.exit()
 
