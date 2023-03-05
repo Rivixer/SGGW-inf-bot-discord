@@ -16,6 +16,7 @@ from nextcord.file import File
 from nextcord.interactions import Interaction
 from nextcord.message import Attachment, MessageReference
 
+from .console import Console, FontColour
 from .errors import AttachmentError
 from .utils import InteractionUtils
 
@@ -41,6 +42,22 @@ class MessagingCog(commands.Cog):
         if not attachment.filename.endswith(".json"):
             raise AttachmentError("The attachment must be a JSON file")
         return Embed.from_dict(json.loads(io.BytesIO(await attachment.read()).read()))
+
+    @commands.Cog.listener(name="on_message")
+    async def _on_message(self, message: nextcord.Message) -> None:
+        if message.content != "":
+            Console.specific(
+                message.content,
+                f"{message.author.display_name}/{message.author}/{message.channel}",
+                FontColour.CYAN,
+            )
+        if message.attachments:
+            for attachment in message.attachments:
+                Console.specific(
+                    attachment.url,
+                    f"{message.author.display_name}/{message.author}/{message.channel}",
+                    FontColour.CYAN,
+                )
 
     @nextcord.slash_command(
         name="message",
