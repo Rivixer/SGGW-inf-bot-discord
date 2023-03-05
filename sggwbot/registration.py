@@ -205,6 +205,99 @@ class RegistrationCog(commands.Cog):
         else:
             await interaction.response.send_message(embeds=embeds, ephemeral=True)
 
+    @nextcord.slash_command(
+        name="edit_member_info",
+        description="Edit the member info.",
+        dm_permission=False,
+    )
+    @InteractionUtils.with_info(catch_errors=True)
+    @InteractionUtils.with_log()
+    async def _edit_member_info(
+        self,
+        interaction: Interaction,
+        member_id: str = SlashOption(description="The mmember's ID."),
+    ) -> None:
+        """Edits the member info.
+
+        Parameters
+        ----------
+        interaction: :class:`nextcord.Interaction`
+            The interaction that triggered the command.
+        member_id: :class:`str`
+            The member's ID.
+        """
+        model = EditMemberInfoModal(self._model, member_id)
+        await interaction.response.send_modal(model)
+
+
+class EditMemberInfoModal(Modal):
+    """The modal to edit the member info."""
+
+    __slots__ = (
+        "model",
+        "member_id",
+    )
+
+    model: RegistrationModel
+    member_id: str
+
+    def __init__(self, model: RegistrationModel, member_id: str) -> None:
+        super().__init__("Edit member info.", timeout=None)
+
+        self.model = model
+        self.member_id = member_id
+        member_data = model.get_member_data(member_id)
+
+        first_name = member_data.get("FirstName", "")
+        self.add_item(
+            TextInput("First name:", default_value=first_name, required=False)
+        )
+
+        last_name = member_data.get("LastName", "")
+        self.add_item(TextInput("Last name:", default_value=last_name, required=False))
+
+        student_id = member_data.get("StudentID", "")
+        self.add_item(
+            TextInput("Student ID:", default_value=student_id, required=False)
+        )
+
+        non_student_reason = member_data.get("Non-student reason", "")
+        self.add_item(
+            TextInput(
+                "Non-student reason", default_value=non_student_reason, required=False
+            )
+        )
+
+        other_account_reason = member_data.get("Another account reason", "")
+        self.add_item(
+            TextInput(
+                "Another account reason",
+                default_value=other_account_reason,
+                required=False,
+            )
+        )
+
+    async def callback(self, interaction: Interaction) -> None:
+        """The callback to edit the member info."""
+
+        member_data = self.model.get_member_data(self.member_id)
+        data = {
+            "FirstName": self.children[0],
+            "LastName": self.children[1],
+            "StudentID": self.children[2],
+            "Non-student reason": self.children[3],
+            "Another account reason": self.children[4],
+        }
+
+        for data_name, data_value in data.items():
+            assert isinstance(data_value, TextInput)
+            member_data[data_name] = data_value.value or None
+
+        self.model.set_member_data(self.member_id, member_data)
+        await interaction.response.send_message(
+            "The member's data has been edited.", ephemeral=True
+        )
+
 
 @dataclass(slots=True)
 class MemberInfo:
@@ -227,7 +320,10 @@ class MemberInfo:
         )
 
         for k, v in self.member_info.items():
-            embed.add_field(name=k, value=v)
+            if v is not None:
+                embed.add_field(name=k, value=v)
+
+        embed.add_field(name="ID", value=self.member.id, inline=False)
 
         everyone = member.guild.default_role
         roles = [role.mention for role in member.roles if role != everyone][::-1]
@@ -281,6 +377,22 @@ class RegistrationModel(Model):
     @property
     def _registered_users_path(self) -> Path:
         return Path("data/registration/registered_users.json")
+
+    def get_member_data(self, member_id: str) -> dict[str, Any]:
+        """Returns the member data."""
+        path = self._registered_users_path
+        with open(path, "r", encoding="utf-8") as f:
+            data: dict[str, dict[str, Any]] = json.load(f)
+        return data.get(member_id, {})
+
+    def set_member_data(self, member_id: str, member_data: dict[str, Any]) -> None:
+        """Sets the member data."""
+        path = self._registered_users_path
+        with open(path, "r", encoding="utf-8") as f:
+            data: dict[str, dict[str, Any]] = json.load(f)
+        data[member_id] = member_data
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4)
 
     def find_matching_members(  # pylint: disable=too-many-locals
         self, argument: str
@@ -630,10 +742,10 @@ class MemberData:
                 f.write(r"{}")
             Console.warn(f"File {path} has been created.")
         with open(path, "r", encoding="utf-8") as f:
-            data: dict[str, Any] = json.load(f)
+            data: dict[str, dict[str, Any]] = json.load(f)
         ret = []
         for k, v in data.items():
-            if v["index"] == self.index and int(k) != self.member.id:
+            if v.get("StudentID") == self.index and int(k) != self.member.id:
                 ret.append(self.member.guild.get_member(int(k)))
         return ret
 
@@ -753,7 +865,7 @@ class CodeModal(Modal):
         bot_channel = self._bot.get_bot_channel()
         embed = (
             Embed(
-                title="Nowa rejestracja!",
+                title="New registration!",
                 description=member.mention,
                 colour=Colour.fuchsia(),
             )
@@ -761,6 +873,9 @@ class CodeModal(Modal):
             .add_field(name="Nick", value=member.display_name)
             .add_field(name="Indeks", value=index)
             .add_field(name="ID", value=member.id)
+            .set_thumbnail(
+                url=member.avatar.url if member.avatar else member.default_avatar.url
+            )
         )
         await bot_channel.send(embed=embed)
 
@@ -837,6 +952,7 @@ class RegisterController:
 
         self._data = data
         self._save_data()
+        await member.add_roles(self._verified_role)
 
 
 @dataclass(slots=True)
