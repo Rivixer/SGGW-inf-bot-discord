@@ -171,7 +171,7 @@ class RegistrationCog(commands.Cog):
 
     @nextcord.slash_command(
         name="whois",
-        description="Shows information about a member.",
+        description="Show information about a member.",
     )
     @InteractionUtils.with_info(catch_errors=True)
     @InteractionUtils.with_log()
