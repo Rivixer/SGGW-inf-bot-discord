@@ -1017,7 +1017,7 @@ class MailController:
         pass
 
     async def send_mail(self) -> None:
-        """|coro"
+        """|coro|
 
         Sends an email with a code.
 
