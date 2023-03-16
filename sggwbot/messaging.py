@@ -17,7 +17,7 @@ from nextcord.interactions import Interaction
 from nextcord.message import Attachment, MessageReference
 
 from .console import Console, FontColour
-from .errors import AttachmentError
+from .errors import AttachmentError, SGGWBotError
 from .utils import InteractionUtils
 
 if TYPE_CHECKING:
@@ -248,7 +248,7 @@ class MessagingCog(commands.Cog):
 
     @_message.subcommand(
         name="add_reaction",
-        description="Add a reaction to a message sent by the bot.",
+        description="Add a reaction to a message.",
     )
     @InteractionUtils.with_info(
         before="Adding the reaction... {emoji}",
@@ -275,6 +275,48 @@ class MessagingCog(commands.Cog):
         message = await channel.fetch_message(int(message_id))
 
         await message.add_reaction(emoji)
+
+    @_message.subcommand(
+        name="add_reactions",
+        description="Add reactions to a message.",
+    )
+    @InteractionUtils.with_info(
+        before="Adding reactions... {emojis}",
+        after="Reactions {emojis} have been added.",
+        catch_errors=True,
+        additional_errors=[SGGWBotError],
+    )
+    @InteractionUtils.with_log(show_channel=True)
+    async def _add_reactions(
+        self,
+        interaction: Interaction,
+        message_id: str = SlashOption(
+            description="The ID of the message to add the reaction to.",
+            required=True,
+        ),
+        emojis: str = SlashOption(
+            description="The emojis to add separated by a space.",
+            required=True,
+        ),
+    ) -> None:
+        channel = interaction.channel
+        if not isinstance(channel, TextChannel):
+            raise ValueError("Cannot edit messages in non-text channels")
+
+        message = await channel.fetch_message(int(message_id))
+
+        emojis_to_add = emojis.split(" ")
+        unadded_emojis: dict[str, nextcord.DiscordException] = {}
+
+        for emoji in emojis_to_add:
+            try:
+                await message.add_reaction(emoji)
+            except nextcord.DiscordException as e:
+                unadded_emojis[emoji] = e
+
+        if unadded_emojis:
+            reason = "\n".join(f"{emoji}: {e}" for emoji, e in unadded_emojis.items())
+            raise SGGWBotError(f"Could not add the following emojis:\n{reason}")
 
     @_message.subcommand(
         name="remove_reaction",
