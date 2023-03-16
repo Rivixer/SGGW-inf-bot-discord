@@ -871,7 +871,7 @@ class CodeModal(Modal):
             )
             .add_field(name="Name", value=f"{member.name}#{member.discriminator}")
             .add_field(name="Nick", value=member.display_name)
-            .add_field(name="Indeks", value=index)
+            .add_field(name="Index", value=index)
             .add_field(name="ID", value=member.id)
             .set_thumbnail(
                 url=member.avatar.url if member.avatar else member.default_avatar.url
