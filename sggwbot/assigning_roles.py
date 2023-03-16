@@ -77,7 +77,7 @@ class AssigningRolesCog(commands.Cog):
         after="The assigning_roles embed has been sent.",
         catch_errors=True,
     )
-    @InteractionUtils.with_log()
+    @InteractionUtils.with_log(show_channel=True)
     async def _send(self, interaction: Interaction) -> None:
         """Sends a new assigning_roles embed.
 
@@ -103,7 +103,7 @@ class AssigningRolesCog(commands.Cog):
         catch_errors=True,
         additional_errors=[UpdateEmbedError],
     )
-    @InteractionUtils.with_log(show_channel=True)
+    @InteractionUtils.with_log()
     async def _update(
         self, interaction: Interaction  # pylint: disable=unused-argument
     ) -> None:
@@ -129,7 +129,7 @@ class AssigningRolesCog(commands.Cog):
         before="Getting assigning_roles embed json...",
         catch_errors=True,
     )
-    @InteractionUtils.with_log(show_channel=True)
+    @InteractionUtils.with_log()
     async def _get_json(self, interaction: Interaction) -> None:
         """Gets the json file representing the assigning_roles embed.
 
@@ -151,7 +151,7 @@ class AssigningRolesCog(commands.Cog):
         catch_errors=True,
         additional_errors=[UpdateEmbedError],
     )
-    @InteractionUtils.with_log(show_channel=True)
+    @InteractionUtils.with_log()
     async def _set_json(
         self,
         interaction: Interaction,  # pylint: disable=unused-argument
