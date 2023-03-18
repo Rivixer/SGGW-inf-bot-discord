@@ -171,7 +171,7 @@ class RegistrationCog(commands.Cog):
 
     @nextcord.slash_command(
         name="whois",
-        description="Shows information about a member.",
+        description="Show information about a member.",
     )
     @InteractionUtils.with_info(catch_errors=True)
     @InteractionUtils.with_log()
@@ -179,7 +179,7 @@ class RegistrationCog(commands.Cog):
         self,
         interaction: Interaction,
         argument: str = SlashOption(
-            description="Member's ID, name, surname, index or nick."
+            description="Member's ID, first name, last name, index or nick."
         ),
     ) -> None:
         matching_members = self._model.find_matching_members(argument)
@@ -871,7 +871,7 @@ class CodeModal(Modal):
             )
             .add_field(name="Name", value=f"{member.name}#{member.discriminator}")
             .add_field(name="Nick", value=member.display_name)
-            .add_field(name="Indeks", value=index)
+            .add_field(name="Index", value=index)
             .add_field(name="ID", value=member.id)
             .set_thumbnail(
                 url=member.avatar.url if member.avatar else member.default_avatar.url
@@ -1017,7 +1017,7 @@ class MailController:
         pass
 
     async def send_mail(self) -> None:
-        """|coro"
+        """|coro|
 
         Sends an email with a code.
 

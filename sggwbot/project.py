@@ -71,7 +71,7 @@ class ProjectCog(commands.Cog):
         after="The project embed has been sent.",
         catch_errors=True,
     )
-    @InteractionUtils.with_log()
+    @InteractionUtils.with_log(show_channel=True)
     async def _send(self, interaction: Interaction) -> None:
         """Sends a new project embed.
 
@@ -97,7 +97,7 @@ class ProjectCog(commands.Cog):
         catch_errors=True,
         additional_errors=[UpdateEmbedError],
     )
-    @InteractionUtils.with_log(show_channel=True)
+    @InteractionUtils.with_log()
     async def _update(
         self, interaction: Interaction  # pylint: disable=unused-argument
     ) -> None:
@@ -123,7 +123,7 @@ class ProjectCog(commands.Cog):
         before="Getting project embed json...",
         catch_errors=True,
     )
-    @InteractionUtils.with_log(show_channel=True)
+    @InteractionUtils.with_log()
     async def _get_json(self, interaction: Interaction) -> None:
         """Gets the json file representing the project embed.
 
@@ -145,7 +145,7 @@ class ProjectCog(commands.Cog):
         catch_errors=True,
         additional_errors=[UpdateEmbedError],
     )
-    @InteractionUtils.with_log(show_channel=True)
+    @InteractionUtils.with_log()
     async def _set_json(
         self,
         interaction: Interaction,  # pylint: disable=unused-argument
