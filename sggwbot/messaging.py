@@ -15,6 +15,7 @@ from nextcord.ext import commands
 from nextcord.file import File
 from nextcord.interactions import Interaction
 from nextcord.message import Attachment, MessageReference
+from nextcord.threads import Thread
 
 from .console import Console, FontColour
 from .errors import AttachmentError, SGGWBotError
@@ -117,7 +118,7 @@ class MessagingCog(commands.Cog):
             raise ValueError("Cannot preview a reply")
 
         channel = interaction.channel
-        if not isinstance(channel, TextChannel):
+        if not isinstance(channel, (TextChannel, Thread)):
             raise ValueError("Cannot send messages to non-text channels")
 
         if reply_to_msg_id:
@@ -177,7 +178,7 @@ class MessagingCog(commands.Cog):
         message_kwargs: dict[str, Any] = {}
 
         channel = interaction.channel
-        if not isinstance(channel, TextChannel):
+        if not isinstance(channel, (TextChannel, Thread)):
             raise ValueError("Cannot edit messages in non-text channels")
 
         message = await channel.fetch_message(int(message_id))
@@ -230,7 +231,7 @@ class MessagingCog(commands.Cog):
         message_kwargs: dict[str, Any] = {}
 
         channel = interaction.channel
-        if not isinstance(channel, TextChannel):
+        if not isinstance(channel, (TextChannel, Thread)):
             raise ValueError("Cannot edit messages in non-text channels")
 
         message = await channel.fetch_message(int(message_id))
@@ -269,7 +270,7 @@ class MessagingCog(commands.Cog):
         ),
     ) -> None:
         channel = interaction.channel
-        if not isinstance(channel, TextChannel):
+        if not isinstance(channel, (TextChannel, Thread)):
             raise ValueError("Cannot edit messages in non-text channels")
 
         message = await channel.fetch_message(int(message_id))
@@ -300,7 +301,7 @@ class MessagingCog(commands.Cog):
         ),
     ) -> None:
         channel = interaction.channel
-        if not isinstance(channel, TextChannel):
+        if not isinstance(channel, (TextChannel, Thread)):
             raise ValueError("Cannot edit messages in non-text channels")
 
         message = await channel.fetch_message(int(message_id))
@@ -341,7 +342,7 @@ class MessagingCog(commands.Cog):
         ),
     ) -> None:
         channel = interaction.channel
-        if not isinstance(channel, TextChannel):
+        if not isinstance(channel, (TextChannel, Thread)):
             raise ValueError("Cannot edit messages in non-text channels")
 
         message = await channel.fetch_message(int(message_id))
@@ -366,7 +367,7 @@ class MessagingCog(commands.Cog):
         ),
     ) -> None:
         channel = interaction.channel
-        if not isinstance(channel, TextChannel):
+        if not isinstance(channel, (TextChannel, Thread)):
             raise ValueError("Cannot edit messages in non-text channels")
 
         message = await channel.fetch_message(int(message_id))

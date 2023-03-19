@@ -24,6 +24,7 @@ from typing import (
 import nextcord
 from nextcord.channel import TextChannel
 from nextcord.interactions import Interaction
+from nextcord.threads import Thread
 
 from .console import Console, FontColour
 
@@ -58,6 +59,7 @@ class InteractionUtils(ABC):
         This decorator should be placed after decorators that set a function as a command.
 
         If the command is a subcommand, its name will be preceded by its parent name.
+        If the command is used in a thread, its name will be preceded by the name of the thread's parent channel.
 
         Parameters
         ----------
@@ -87,6 +89,9 @@ class InteractionUtils(ABC):
                     channel = interaction.channel
                     if isinstance(channel, TextChannel):
                         type_info += f"/{channel.name}"
+                    if isinstance(channel, Thread):
+                        if parent := channel.parent:
+                            type_info += f"/{parent.name}/{channel.name}"
 
                 Console.specific(
                     f"{user_info} used /{command_name} {kwargs_info}",
