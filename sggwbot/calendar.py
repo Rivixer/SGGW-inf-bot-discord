@@ -45,6 +45,7 @@ class CalendarCog(commands.Cog):
         model = CalendarModel()
         embed_model = CalendarEmbedModel(model, bot)
         self._ctrl = CalendarController(model, embed_model)
+        self._remove_deprecated_events.start()  # pylint: disable=no-member
 
     @nextcord.slash_command(
         name="calendar",
@@ -189,8 +190,18 @@ class CalendarCog(commands.Cog):
             required=False,
             default=None,
         ),
+        prefix: str = SlashOption(
+            description="The prefix (e.g. `gr.1,2`)",
+            required=False,
+            default="",
+        ),
+        location: str = SlashOption(
+            description="The location (e.g. `Aula IV`)",
+            required=False,
+            default="",
+        ),
     ) -> None:
-        self._ctrl.add_event(description, date, time)
+        self._ctrl.add_event(description, date, time, prefix, location)
         await self._ctrl.update_embed()
 
     @_calendar.subcommand(
@@ -277,12 +288,18 @@ class Event:
     date: :class:`datetime.datetime`
         The date and time when the event is to take place.
         Used for compare.
+    prefix: :class:`str`
+        The prefix of the event.
+    location: :class:`str`
+        The location of the event.
     is_all_day: :class:`bool`
         Whether the event is an all-day event.
     """
 
     description: str = field(compare=False)
     date: dt.datetime
+    prefix: str = field(compare=False)
+    location: str = field(compare=False)
     is_all_day: bool = field(compare=False)
 
     def __post_init__(self) -> None:
@@ -310,6 +327,13 @@ class Event:
         """
 
         result = f"**{self.description}**"
+
+        if self.prefix:
+            result = f"[{self.prefix}] {result}"
+
+        if self.location:
+            result = f"{result} [{self.location}]"
+
         if not self.is_all_day:
             if sys.platform == "win32":
                 result += f' ({self.date.strftime("%#H:%M")})'  # pragma: no cover
@@ -345,21 +369,26 @@ class CalendarModel(Model):
         result = []
 
         for event in self._events_data:
-            description, date_str, is_all_day = event
+            description, date_str, prefix, location, is_all_day = event
             date = dt.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
 
-            _event = Event(description, date, is_all_day)
+            _event = Event(description, date, prefix, location, is_all_day)
             result.append(_event)
 
         result.sort()
         return result
 
     @property
-    def _events_data(self) -> list[tuple[str, str, bool]]:
+    def _events_data(self) -> list[tuple[str, str, str, str, bool]]:
         return list(map(tuple, self.data.get("events", [])))
 
     def add_event_to_json(
-        self, description: str, datetime: dt.datetime, is_all_day: bool
+        self,
+        description: str,
+        datetime: dt.datetime,
+        prefix: str,
+        location: str,
+        is_all_day: bool,
     ) -> Event:
         """Adds the event to the `settings.json` file.
 
@@ -369,6 +398,10 @@ class CalendarModel(Model):
             The event description.
         datetime: :class:`datetime.datetime`
             The date and time when the event is to take place.
+        prefix: :class:`str`
+            The prefix of the event.
+        location: :class:`str`
+            The location of the event.
         is_all_day: :class:`bool`
             Whether the event is an all-day event.
 
@@ -381,14 +414,22 @@ class CalendarModel(Model):
         if is_all_day:
             datetime = datetime.replace(hour=0, minute=0, second=0)
         data = self._events_data
-        data.append((description, str(datetime), is_all_day))
+        data.append((description, str(datetime), prefix, location, is_all_day))
         self.update_settings("events", data, force=True)
-        return Event(description, datetime, is_all_day)
+        return Event(description, datetime, prefix, location, is_all_day)
 
     def remove_event_from_json(self, event: Event) -> None:
         """Removes the event from the `settings.json` file."""
         data = self._events_data
-        data.remove((event.description, str(event.date), event.is_all_day))
+        data.remove(
+            (
+                event.description,
+                str(event.date),
+                event.prefix,
+                event.location,
+                event.is_all_day,
+            )
+        )
         self.update_settings("events", data)
 
     def get_grouped_events(self) -> Generator[tuple[dt.date, list[Event]], None, None]:
@@ -467,6 +508,8 @@ class CalendarController(ControllerWithEmbed):
         text: str,
         date: str,
         time: str | None,
+        prefix: str,
+        location: str,
     ) -> None:
         """Adds event to the `settings.json` file.
 
@@ -481,6 +524,10 @@ class CalendarController(ControllerWithEmbed):
         time: :class:`str` | `None`
             The time in the format `hh.mm`.
             If `None`, the time will be set to `00.00`.
+        prefix: :class:`str`
+            The prefix of the event.
+        location: :class:`str`
+            The location of the event.
 
         Raises
         ------
@@ -489,7 +536,7 @@ class CalendarController(ControllerWithEmbed):
         """
         datetime = self._convert_input_to_datetime(date, time)
         is_all_day = time is None
-        self.model.add_event_to_json(text, datetime, is_all_day)
+        self.model.add_event_to_json(text, datetime, prefix, location, is_all_day)
 
     def remove_event(self, index: int) -> Event:
         """Removes event from the `settings.json` file.
