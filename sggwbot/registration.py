@@ -319,7 +319,15 @@ class MemberInfo:
             url=member.avatar.url if member.avatar else member.default_avatar.url
         )
 
-        for k, v in self.member_info.items():
+        info = {
+            "First name": self.member_info.get("FirstName"),
+            "Last name": self.member_info.get("LastName"),
+            "Student ID": self.member_info.get("StudentID"),
+            "Non-student reason": self.member_info.get("Non-student reason"),
+            "Another account reason": self.member_info.get("Another account reason"),
+        }
+
+        for k, v in info.items():
             if v is not None:
                 embed.add_field(name=k, value=v)
 
