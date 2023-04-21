@@ -149,14 +149,14 @@ def test_member_info_to_embed(member1: MemberMock) -> None:
             color=0x111111,
         )
         .add_field(
-            name="FirstName",
+            name="First name",
             value="First",
         )
         .add_field(
-            name="LastName",
+            name="Last name",
             value="Last",
         )
-        .add_field(name="StudentID", value="123456")
+        .add_field(name="Student ID", value="123456")
         .add_field(name="ID", value=member1.id, inline=False)
         .add_field(name="Roles", value="<@&456>, <@&123>", inline=False)
         .set_thumbnail(url="link.png")
