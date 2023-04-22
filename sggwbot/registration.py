@@ -319,7 +319,15 @@ class MemberInfo:
             url=member.avatar.url if member.avatar else member.default_avatar.url
         )
 
-        for k, v in self.member_info.items():
+        info = {
+            "First name": self.member_info.get("FirstName"),
+            "Last name": self.member_info.get("LastName"),
+            "Student ID": self.member_info.get("StudentID"),
+            "Non-student reason": self.member_info.get("Non-student reason"),
+            "Another account reason": self.member_info.get("Another account reason"),
+        }
+
+        for k, v in info.items():
             if v is not None:
                 embed.add_field(name=k, value=v)
 
@@ -833,8 +841,20 @@ class CodeModal(Modal):
 
     async def callback(self, interaction: Interaction) -> None:
         """Callback for the modal."""
+
         code_input = self.children[0]
         assert isinstance(code_input, TextInput)
+
+        data = {}
+        if not self._member_data.is_student:
+            data["Non-student reason"] = self.children[1]
+            if self._member_data.other_accounts:
+                data["Another account reason"] = self.children[2]
+        elif self._member_data.other_accounts:
+            data["Another account reason"] = self.children[1]
+
+        for data_value in data.values():
+            assert isinstance(data_value, TextInput)
 
         if code_input.value != self._code_model.code:
             await interaction.response.send_message(
@@ -877,6 +897,11 @@ class CodeModal(Modal):
                 url=member.avatar.url if member.avatar else member.default_avatar.url
             )
         )
+
+        v: TextInput
+        for k, v in data.items():
+            embed.add_field(name=k, value=v.value, inline=False)
+
         await bot_channel.send(embed=embed)
 
 
