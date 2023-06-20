@@ -80,7 +80,13 @@ class InteractionUtils(ABC):
                 type_info = "SLASH_COMMAND"
                 command_name = InteractionUtils._command_name(interaction)
                 user: Member = interaction.user  # type: ignore
-                user_info = f"{user.display_name} ({user.name}#{user.discriminator})"
+
+                user_info = f"{user.display_name} "
+                if user.discriminator == "0":
+                    user_info += f"({user.name})"
+                else:
+                    user_info += f"({user.name}#{user.discriminator})"
+
                 kwargs_info = " ".join(
                     f"{k}:{v}" for k, v in kwargs.items() if v is not None
                 )
