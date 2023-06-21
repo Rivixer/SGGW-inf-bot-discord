@@ -79,7 +79,7 @@ class VoiceChananelManagerCog(commands.Cog):
             and len(list(map(lambda i: not i.bot, before.channel.members))) == 0
             and any(filter(lambda i: len(i.members) == 0, before.channel.category.channels))  # type: ignore
         ):
-            await self._ctrl.delete_channel(before.channel)  # type: ignore
+            await self._ctrl.delete_voice_channel(before.channel)  # type: ignore
 
     @nextcord.slash_command(
         name="limit",
@@ -194,7 +194,7 @@ class VoiceChananelManagerCog(commands.Cog):
 
             if len(channel.members) == 0:
                 if is_one_empty:
-                    await self._ctrl.delete_channel(channel)
+                    await self._ctrl.delete_voice_channel(channel)
                 else:
                     is_one_empty = True
 
@@ -220,7 +220,7 @@ class VoiceChannelManagerController(Controller):
         name = self._model.get_next_voice_channel_name()
         await category.create_voice_channel(name=name)
 
-    async def delete_channel(self, channel: VoiceChannel):
+    async def delete_voice_channel(self, channel: VoiceChannel):
         """Deletes a voice channel.
 
         Parameters
@@ -228,7 +228,9 @@ class VoiceChannelManagerController(Controller):
         channel: :class:`VoiceChannel`
             The voice channel to be deleted.
         """
-        await channel.delete()
+
+        if isinstance(channel, VoiceChannel):
+            await channel.delete()
 
     async def change_channel_name(self, channel: VoiceChannel, name: str):
         """Changes the name of a voice channel.
