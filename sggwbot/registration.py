@@ -311,9 +311,14 @@ class MemberInfo:
         """Converts the member info to an embed."""
         member = self.member
 
+        member_info = member.name
+        if (member.discriminator != "0"):
+            member_info += f"#{member.discriminator}"
+        member_info +=  f" ({member.mention})"
+
         embed = Embed(
             title="User information:",
-            description=f"{member.name}#{member.discriminator} ({member.mention})",
+            description=member_info,
             colour=member.top_role.colour,
         ).set_thumbnail(
             url=member.avatar.url if member.avatar else member.default_avatar.url
@@ -883,20 +888,27 @@ class CodeModal(Modal):
         member = self._member_data.member
         index = self._member_data.index
         bot_channel = self._bot.get_bot_channel()
+        
+        member_name = member.name
+        if member.discriminator != "0":
+            member_name += f"#{member.discriminator}"
+
         embed = (
             Embed(
                 title="New registration!",
                 description=member.mention,
                 colour=Colour.fuchsia(),
             )
-            .add_field(name="Name", value=f"{member.name}#{member.discriminator}")
-            .add_field(name="Nick", value=member.display_name)
+            .add_field(name="Name", value=member_name)
             .add_field(name="Index", value=index)
-            .add_field(name="ID", value=member.id)
+            .add_field(name="ID", value=member.id, inline=False)
             .set_thumbnail(
                 url=member.avatar.url if member.avatar else member.default_avatar.url
             )
         )
+
+        if member.display_name != member.name:
+            embed.insert_field_at(1, name="Nick", value=member.display_name)
 
         v: TextInput
         for k, v in data.items():
@@ -1007,9 +1019,12 @@ class MailController:
         with open(path, "r", encoding="utf-8") as f:
             text = f.read()
 
+        display_name = self._member.display_name
+        if self._member.discriminator != "0":
+            display_name += f"#{self._member.discriminator}"
+
         text = (
-            text.replace("{{USER_DISPLAY_NAME}}", self._member.display_name)
-            .replace("{{USER_DISCRIMINATOR}}", self._member.discriminator)
+            text.replace("{{USER_DISPLAY_NAME}}", display_name)
             .replace("{{REGISTRATION_CODE}}", self._code_model.code)
             .replace("{{DISCORD_NAME}}", self._member.guild.name)
             .replace("{{CODE_EXPIRATION}}", self._code_model.expire)

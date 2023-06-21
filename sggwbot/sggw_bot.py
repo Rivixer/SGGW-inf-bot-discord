@@ -124,8 +124,6 @@ class SGGWBot(commands.Bot):
         return channel
 
     def _load_cogs(self) -> None:
-        # from .paths import Path
-
         paths = [
             "sggwbot.assigning_roles.py",
             "sggwbot.information.py",
@@ -134,6 +132,7 @@ class SGGWBot(commands.Bot):
             "sggwbot.status.py",
             "sggwbot.registration.py",
             "sggwbot.messaging.py",
+            "sggwbot.voice_channel_manager.py",
         ]
 
         for path in paths:

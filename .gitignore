@@ -138,6 +138,8 @@ old_settings/
 old_files/
 settings.json
 prototype_json.json
+category_ids.json
+voice_channel_names.txt
 
 # Registraion
 registered_users.json
