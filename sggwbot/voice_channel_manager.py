@@ -169,8 +169,9 @@ class VoiceChananelManagerCog(commands.Cog):
             return
 
         try:
-            async with asyncio.timeout(5):
-                await self._ctrl.change_channel_name(voice.channel, name)  # type: ignore
+            await asyncio.wait_for(
+                self._ctrl.change_channel_name(voice.channel, name), 3  # type: ignore
+            )
         except asyncio.TimeoutError as exc:
             raise TimeoutError(
                 "The name of the channel can be changed max 2 times per 10 minutes."
