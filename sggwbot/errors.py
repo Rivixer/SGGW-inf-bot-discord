@@ -20,3 +20,7 @@ class RegistrationError(SGGWBotError):
 
 class AttachmentError(SGGWBotError):
     """Attachment error."""
+
+
+class NoVoiceConnection(SGGWBotError):
+    """No voice connection."""

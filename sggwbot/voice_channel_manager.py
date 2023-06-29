@@ -12,7 +12,6 @@ the channel is automatically deleted.
 from __future__ import annotations
 
 import asyncio
-import json
 import random
 
 import nextcord
@@ -22,7 +21,8 @@ from nextcord.ext import commands, tasks
 from nextcord.interactions import Interaction
 from nextcord.member import Member, VoiceState
 
-from sggwbot.console import Console
+from sggwbot.console import Console, FontColour
+from sggwbot.errors import NoVoiceConnection
 from sggwbot.models import Controller, Model
 from sggwbot.sggw_bot import SGGWBot
 from sggwbot.utils import InteractionUtils
@@ -66,20 +66,45 @@ class VoiceChananelManagerCog(commands.Cog):
         if member.bot or before.channel == after.channel:
             return
 
-        if (
-            after.channel
-            and after.channel.category == self._model.voice_channel_category
-            and len(after.channel.members) == 1
-        ):
-            await self._ctrl.create_new_channel()
+        if before.channel:
+            Console.specific(
+                f"{member.display_name} left.",
+                before.channel.name,
+                FontColour.BLUE,
+                bold_type=True,
+            )
+            if (
+                before.channel.category == self._model.voice_channel_category
+                and len(list(map(lambda i: not i.bot, before.channel.members))) == 0
+                and any(filter(lambda i: len(i.members) == 0, before.channel.category.channels))  # type: ignore
+            ):
+                channel_name = before.channel.name
+                await self._ctrl.delete_voice_channel(before.channel)  # type: ignore
+                Console.specific(
+                    "Channel has been deleted.",
+                    channel_name,
+                    FontColour.BLUE,
+                    bold_type=True,
+                )
 
-        if (
-            before.channel
-            and before.channel.category == self._model.voice_channel_category
-            and len(list(map(lambda i: not i.bot, before.channel.members))) == 0
-            and any(filter(lambda i: len(i.members) == 0, before.channel.category.channels))  # type: ignore
-        ):
-            await self._ctrl.delete_voice_channel(before.channel)  # type: ignore
+        if after.channel:
+            Console.specific(
+                f"{member.display_name} joined.",
+                after.channel.name,
+                FontColour.BLUE,
+                bold_type=True,
+            )
+            if (
+                after.channel.category == self._model.voice_channel_category
+                and len(after.channel.members) == 1
+            ):
+                created_channel = await self._ctrl.create_new_channel()
+                Console.specific(
+                    "Channel has been created.",
+                    created_channel.name,
+                    FontColour.BLUE,
+                    bold_type=True,
+                )
 
     @nextcord.slash_command(
         name="limit",
@@ -89,6 +114,8 @@ class VoiceChananelManagerCog(commands.Cog):
         before="Changing the limit to {limit}...",
         after="The limit has been changed.",
         catch_errors=True,
+        with_traceback=False,
+        additional_errors=[NoVoiceConnection],
     )
     @InteractionUtils.with_log()
     async def _limit(
@@ -108,6 +135,11 @@ class VoiceChananelManagerCog(commands.Cog):
             The interaction that triggered the command.
         limit: :class:`int`
             The limit to be set.
+
+        Raises
+        ------
+        NoVoiceConnection
+            If the member is not connected to a voice channel.
         """
 
         user: Member = interaction.user  # type: ignore
@@ -118,7 +150,7 @@ class VoiceChananelManagerCog(commands.Cog):
             or not interaction.channel
             or not self._model.user_on_voice(user)
         ):
-            return
+            raise NoVoiceConnection("You are not connected to a voice channel.")
 
         await voice.channel.edit(user_limit=limit)  # type: ignore
 
@@ -131,7 +163,7 @@ class VoiceChananelManagerCog(commands.Cog):
         after="The name has been changed.",
         catch_errors=True,
         with_traceback=False,
-        additional_errors=[TimeoutError],
+        additional_errors=[TimeoutError, NoVoiceConnection],
     )
     @InteractionUtils.with_log()
     async def _name(
@@ -156,6 +188,8 @@ class VoiceChananelManagerCog(commands.Cog):
         ------
         TimeoutError
             If the name of the channel has been changed 2 times per 10 minutes.
+        NoVoiceConnection
+            If the member is not connected to a voice channel.
         """
 
         user: Member = interaction.user  # type: ignore
@@ -166,7 +200,7 @@ class VoiceChananelManagerCog(commands.Cog):
             or not interaction.channel
             or not self._model.user_on_voice(user)
         ):
-            return
+            raise NoVoiceConnection("You are not connected to a voice channel.")
 
         try:
             await asyncio.wait_for(
@@ -215,13 +249,14 @@ class VoiceChannelManagerController(Controller):
         super().__init__(model)
         self._model = model
 
-    async def create_new_channel(self):
+    async def create_new_channel(self) -> VoiceChannel:
         """Creates a new voice channel."""
         category = self._model.voice_channel_category
         name = self._model.get_next_voice_channel_name()
-        await category.create_voice_channel(name=name)
+        channel = await category.create_voice_channel(name=name)
+        return channel
 
-    async def delete_voice_channel(self, channel: VoiceChannel):
+    async def delete_voice_channel(self, channel: VoiceChannel) -> None:
         """Deletes a voice channel.
 
         Parameters
@@ -233,7 +268,7 @@ class VoiceChannelManagerController(Controller):
         if isinstance(channel, VoiceChannel):
             await channel.delete()
 
-    async def change_channel_name(self, channel: VoiceChannel, name: str):
+    async def change_channel_name(self, channel: VoiceChannel, name: str) -> None:
         """Changes the name of a voice channel.
 
         Parameters
@@ -249,22 +284,24 @@ class VoiceChannelManagerController(Controller):
 class VoiceChannelManagerModel(Model):
     """The model for the voice channel manager cog."""
 
-    __slots__ = (
-        "_voice_channel_category_id",
-        "_voice_channel_names",
-        "_bot",
-    )
+    __slots__ = ("_bot",)
 
     _bot: SGGWBot
-    _voice_channel_category_id: int
-    _voice_channel_names: list[str]
 
     def __init__(self, bot: SGGWBot) -> None:
         """Initializes the voice channel manager model."""
         super().__init__()
         self._bot = bot
-        self._load_voice_channel_names()
-        self._load_voice_channel_category_id()
+
+    @property
+    def _voice_channel_category_id(self) -> int:
+        """The voice channel category id."""
+        return self.data["voice_channel_category_id"]
+
+    @property
+    def _voice_channel_names(self) -> list[str]:
+        """The voice channel names."""
+        return self.data["default_voice_channel_names"]
 
     def user_on_voice(self, user: Member) -> bool:
         """Returns whether the user is on voice."""
@@ -285,11 +322,6 @@ class VoiceChannelManagerModel(Model):
             )
         )[0]
 
-    def _load_voice_channel_category_id(self) -> None:
-        with open("data/category_ids.json", "r", encoding="utf-8") as file:
-            data = json.load(file)
-        self._voice_channel_category_id = data["voice_channels"]
-
     def get_voice_channels(self) -> list[VoiceChannel]:
         """Returns a list of voice channels in the voice channel category."""
         guild = self._bot.get_default_guild()
@@ -299,16 +331,6 @@ class VoiceChannelManagerModel(Model):
                 guild.voice_channels,
             )
         )
-
-    def _load_voice_channel_names(self) -> None:
-        path = "data/voice_channel_names.txt"
-        try:
-            with open(path, "r", encoding="utf-8") as file:
-                channel_names = map(lambda line: line.strip(), file.readlines())
-        except OSError:
-            Console.warn(f"File '{path}' not found.")
-            channel_names = []
-        self._voice_channel_names = list(filter(None, channel_names))
 
     def _voice_channel_name_exists(self, name: str) -> bool:
         voice_channels = self.get_voice_channels()
