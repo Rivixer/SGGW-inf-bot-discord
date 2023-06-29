@@ -249,22 +249,24 @@ class VoiceChannelManagerController(Controller):
 class VoiceChannelManagerModel(Model):
     """The model for the voice channel manager cog."""
 
-    __slots__ = (
-        "_voice_channel_category_id",
-        "_voice_channel_names",
-        "_bot",
-    )
+    __slots__ = ("_bot",)
 
     _bot: SGGWBot
-    _voice_channel_category_id: int
-    _voice_channel_names: list[str]
 
     def __init__(self, bot: SGGWBot) -> None:
         """Initializes the voice channel manager model."""
         super().__init__()
         self._bot = bot
-        self._load_voice_channel_names()
-        self._load_voice_channel_category_id()
+
+    @property
+    def _voice_channel_category_id(self) -> int:
+        """The voice channel category id."""
+        return self.data["voice_channel_category_id"]
+
+    @property
+    def _voice_channel_names(self) -> list[str]:
+        """The voice channel names."""
+        return self.data["default_voice_channel_names"]
 
     def user_on_voice(self, user: Member) -> bool:
         """Returns whether the user is on voice."""
@@ -285,11 +287,6 @@ class VoiceChannelManagerModel(Model):
             )
         )[0]
 
-    def _load_voice_channel_category_id(self) -> None:
-        with open("data/category_ids.json", "r", encoding="utf-8") as file:
-            data = json.load(file)
-        self._voice_channel_category_id = data["voice_channels"]
-
     def get_voice_channels(self) -> list[VoiceChannel]:
         """Returns a list of voice channels in the voice channel category."""
         guild = self._bot.get_default_guild()
@@ -299,16 +296,6 @@ class VoiceChannelManagerModel(Model):
                 guild.voice_channels,
             )
         )
-
-    def _load_voice_channel_names(self) -> None:
-        path = "data/voice_channel_names.txt"
-        try:
-            with open(path, "r", encoding="utf-8") as file:
-                channel_names = map(lambda line: line.strip(), file.readlines())
-        except OSError:
-            Console.warn(f"File '{path}' not found.")
-            channel_names = []
-        self._voice_channel_names = list(filter(None, channel_names))
 
     def _voice_channel_name_exists(self, name: str) -> bool:
         voice_channels = self.get_voice_channels()
