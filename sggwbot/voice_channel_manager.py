@@ -21,7 +21,7 @@ from nextcord.ext import commands, tasks
 from nextcord.interactions import Interaction
 from nextcord.member import Member, VoiceState
 
-from sggwbot.console import Console
+from sggwbot.console import Console, FontColour
 from sggwbot.errors import NoVoiceConnection
 from sggwbot.models import Controller, Model
 from sggwbot.sggw_bot import SGGWBot
@@ -66,20 +66,45 @@ class VoiceChananelManagerCog(commands.Cog):
         if member.bot or before.channel == after.channel:
             return
 
-        if (
-            after.channel
-            and after.channel.category == self._model.voice_channel_category
-            and len(after.channel.members) == 1
-        ):
-            await self._ctrl.create_new_channel()
+        if before.channel:
+            Console.specific(
+                f"{member.display_name} left.",
+                before.channel.name,
+                FontColour.BLUE,
+                bold_type=True,
+            )
+            if (
+                before.channel.category == self._model.voice_channel_category
+                and len(list(map(lambda i: not i.bot, before.channel.members))) == 0
+                and any(filter(lambda i: len(i.members) == 0, before.channel.category.channels))  # type: ignore
+            ):
+                channel_name = before.channel.name
+                await self._ctrl.delete_voice_channel(before.channel)  # type: ignore
+                Console.specific(
+                    "Channel has been deleted.",
+                    channel_name,
+                    FontColour.BLUE,
+                    bold_type=True,
+                )
 
-        if (
-            before.channel
-            and before.channel.category == self._model.voice_channel_category
-            and len(list(map(lambda i: not i.bot, before.channel.members))) == 0
-            and any(filter(lambda i: len(i.members) == 0, before.channel.category.channels))  # type: ignore
-        ):
-            await self._ctrl.delete_voice_channel(before.channel)  # type: ignore
+        if after.channel:
+            Console.specific(
+                f"{member.display_name} joined.",
+                after.channel.name,
+                FontColour.BLUE,
+                bold_type=True,
+            )
+            if (
+                after.channel.category == self._model.voice_channel_category
+                and len(after.channel.members) == 1
+            ):
+                created_channel = await self._ctrl.create_new_channel()
+                Console.specific(
+                    "Channel has been created.",
+                    created_channel.name,
+                    FontColour.BLUE,
+                    bold_type=True,
+                )
 
     @nextcord.slash_command(
         name="limit",
@@ -224,13 +249,14 @@ class VoiceChannelManagerController(Controller):
         super().__init__(model)
         self._model = model
 
-    async def create_new_channel(self):
+    async def create_new_channel(self) -> VoiceChannel:
         """Creates a new voice channel."""
         category = self._model.voice_channel_category
         name = self._model.get_next_voice_channel_name()
-        await category.create_voice_channel(name=name)
+        channel = await category.create_voice_channel(name=name)
+        return channel
 
-    async def delete_voice_channel(self, channel: VoiceChannel):
+    async def delete_voice_channel(self, channel: VoiceChannel) -> None:
         """Deletes a voice channel.
 
         Parameters
@@ -242,7 +268,7 @@ class VoiceChannelManagerController(Controller):
         if isinstance(channel, VoiceChannel):
             await channel.delete()
 
-    async def change_channel_name(self, channel: VoiceChannel, name: str):
+    async def change_channel_name(self, channel: VoiceChannel, name: str) -> None:
         """Changes the name of a voice channel.
 
         Parameters
