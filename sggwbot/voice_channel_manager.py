@@ -12,7 +12,6 @@ the channel is automatically deleted.
 from __future__ import annotations
 
 import asyncio
-import json
 import random
 
 import nextcord
@@ -23,6 +22,7 @@ from nextcord.interactions import Interaction
 from nextcord.member import Member, VoiceState
 
 from sggwbot.console import Console
+from sggwbot.errors import NoVoiceConnection
 from sggwbot.models import Controller, Model
 from sggwbot.sggw_bot import SGGWBot
 from sggwbot.utils import InteractionUtils
@@ -89,6 +89,8 @@ class VoiceChananelManagerCog(commands.Cog):
         before="Changing the limit to {limit}...",
         after="The limit has been changed.",
         catch_errors=True,
+        with_traceback=False,
+        additional_errors=[NoVoiceConnection],
     )
     @InteractionUtils.with_log()
     async def _limit(
@@ -108,6 +110,11 @@ class VoiceChananelManagerCog(commands.Cog):
             The interaction that triggered the command.
         limit: :class:`int`
             The limit to be set.
+
+        Raises
+        ------
+        NoVoiceConnection
+            If the member is not connected to a voice channel.
         """
 
         user: Member = interaction.user  # type: ignore
@@ -118,7 +125,7 @@ class VoiceChananelManagerCog(commands.Cog):
             or not interaction.channel
             or not self._model.user_on_voice(user)
         ):
-            return
+            raise NoVoiceConnection("You are not connected to a voice channel.")
 
         await voice.channel.edit(user_limit=limit)  # type: ignore
 
@@ -131,7 +138,7 @@ class VoiceChananelManagerCog(commands.Cog):
         after="The name has been changed.",
         catch_errors=True,
         with_traceback=False,
-        additional_errors=[TimeoutError],
+        additional_errors=[TimeoutError, NoVoiceConnection],
     )
     @InteractionUtils.with_log()
     async def _name(
@@ -156,6 +163,8 @@ class VoiceChananelManagerCog(commands.Cog):
         ------
         TimeoutError
             If the name of the channel has been changed 2 times per 10 minutes.
+        NoVoiceConnection
+            If the member is not connected to a voice channel.
         """
 
         user: Member = interaction.user  # type: ignore
@@ -166,7 +175,7 @@ class VoiceChananelManagerCog(commands.Cog):
             or not interaction.channel
             or not self._model.user_on_voice(user)
         ):
-            return
+            raise NoVoiceConnection("You are not connected to a voice channel.")
 
         try:
             await asyncio.wait_for(
