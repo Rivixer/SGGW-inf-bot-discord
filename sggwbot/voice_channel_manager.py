@@ -255,14 +255,19 @@ class VoiceChannelManagerController(Controller):
         self._model = model
 
     async def create_new_channel(self) -> VoiceChannel:
-        """Creates a new voice channel."""
+        """|coro|
+
+        Creates a new voice channel.
+        """
         category = self._model.voice_channel_category
         name = self._model.get_next_voice_channel_name()
         channel = await category.create_voice_channel(name=name)
         return channel
 
     async def delete_voice_channel(self, channel: VoiceChannel) -> None:
-        """Deletes a voice channel.
+        """|coro|
+
+        Deletes a voice channel.
 
         Parameters
         ----------
@@ -274,7 +279,9 @@ class VoiceChannelManagerController(Controller):
             await channel.delete()
 
     async def change_channel_name(self, channel: VoiceChannel, name: str) -> None:
-        """Changes the name of a voice channel.
+        """|coro|
+
+        Changes the name of a voice channel.
 
         Parameters
         ----------
