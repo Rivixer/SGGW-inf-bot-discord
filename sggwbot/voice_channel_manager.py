@@ -13,19 +13,24 @@ from __future__ import annotations
 
 import asyncio
 import random
+from typing import TYPE_CHECKING
 
 import nextcord
 from nextcord.application_command import SlashOption
-from nextcord.channel import CategoryChannel, VoiceChannel
+from nextcord.channel import VoiceChannel
 from nextcord.ext import commands, tasks
 from nextcord.interactions import Interaction
-from nextcord.member import Member, VoiceState
 
 from sggwbot.console import Console, FontColour
 from sggwbot.errors import NoVoiceConnection
 from sggwbot.models import Controller, Model
-from sggwbot.sggw_bot import SGGWBot
 from sggwbot.utils import InteractionUtils
+
+if TYPE_CHECKING:
+    from nextcord.channel import CategoryChannel
+    from nextcord.member import Member, VoiceState
+
+    from sggwbot.sggw_bot import SGGWBot
 
 
 class VoiceChananelManagerCog(commands.Cog):
