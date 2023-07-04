@@ -18,11 +18,12 @@ from typing import TYPE_CHECKING
 import nextcord
 from nextcord.application_command import SlashOption
 from nextcord.channel import VoiceChannel
+from nextcord.errors import DiscordException
 from nextcord.ext import commands, tasks
 from nextcord.interactions import Interaction
 
 from sggwbot.console import Console, FontColour
-from sggwbot.errors import NoVoiceConnection
+from sggwbot.errors import ExceptionData, NoVoiceConnection
 from sggwbot.models import Controller, Model
 from sggwbot.utils import InteractionUtils
 
@@ -118,9 +119,17 @@ class VoiceChananelManagerCog(commands.Cog):
     @InteractionUtils.with_info(
         before="Changing the limit to {limit}...",
         after="The limit has been changed.",
-        catch_errors=True,
-        with_traceback=False,
-        additional_errors=[NoVoiceConnection],
+        catch_exceptions=[
+            ExceptionData(
+                DiscordException,
+                with_traceback_in_response=False,
+            ),
+            ExceptionData(
+                NoVoiceConnection,
+                with_traceback_in_response=False,
+                with_traceback_in_log=False,
+            ),
+        ],
     )
     @InteractionUtils.with_log()
     async def _limit(
@@ -166,9 +175,22 @@ class VoiceChananelManagerCog(commands.Cog):
     @InteractionUtils.with_info(
         before="Changing the name to {name}...",
         after="The name has been changed.",
-        catch_errors=True,
-        with_traceback=False,
-        additional_errors=[TimeoutError, NoVoiceConnection],
+        catch_exceptions=[
+            ExceptionData(
+                DiscordException,
+                with_traceback_in_response=False,
+            ),
+            ExceptionData(
+                TimeoutError,
+                with_traceback_in_response=False,
+                with_traceback_in_log=False,
+            ),
+            ExceptionData(
+                NoVoiceConnection,
+                with_traceback_in_response=False,
+                with_traceback_in_log=False,
+            ),
+        ],
     )
     @InteractionUtils.with_log()
     async def _name(

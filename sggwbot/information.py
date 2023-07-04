@@ -14,13 +14,14 @@ from typing import TYPE_CHECKING
 import nextcord
 from nextcord.application_command import SlashOption
 from nextcord.channel import TextChannel
+from nextcord.errors import DiscordException
 from nextcord.ext import commands
 from nextcord.interactions import Interaction
 from nextcord.message import Attachment
 
-from .errors import UpdateEmbedError
-from .models import ControllerWithEmbed, EmbedModel, Model
-from .utils import InteractionUtils
+from sggwbot.errors import UpdateEmbedError
+from sggwbot.models import ControllerWithEmbed, EmbedModel, Model
+from sggwbot.utils import InteractionUtils
 
 if TYPE_CHECKING:
     from sggw_bot import SGGWBot
@@ -62,7 +63,7 @@ class InformationCog(commands.Cog):
     @InteractionUtils.with_info(
         before="Sending information embed...",
         after="The information embed has been sent.",
-        catch_errors=True,
+        catch_exceptions=[DiscordException],
     )
     @InteractionUtils.with_log(show_channel=True)
     async def _send(self, interaction: Interaction) -> None:
@@ -82,8 +83,7 @@ class InformationCog(commands.Cog):
     @InteractionUtils.with_info(
         before="Updating information embed...",
         after="The information embed has been updated.",
-        catch_errors=True,
-        additional_errors=[UpdateEmbedError],
+        catch_exceptions=[UpdateEmbedError],
     )
     @InteractionUtils.with_log()
     async def _update(
@@ -109,7 +109,7 @@ class InformationCog(commands.Cog):
     )
     @InteractionUtils.with_info(
         before="Getting information embed json...",
-        catch_errors=True,
+        catch_exceptions=[DiscordException],
     )
     @InteractionUtils.with_log()
     async def _get_json(self, interaction: Interaction) -> None:
@@ -130,8 +130,7 @@ class InformationCog(commands.Cog):
     @InteractionUtils.with_info(
         before="Setting information embed json and updating the embed...",
         after="The information embed and json file have been updated.",
-        catch_errors=True,
-        additional_errors=[UpdateEmbedError],
+        catch_exceptions=[TypeError, DiscordException, UpdateEmbedError],
     )
     @InteractionUtils.with_log()
     async def _set_json(
