@@ -79,10 +79,16 @@ class VoiceChananelManagerCog(commands.Cog):
                 FontColour.BLUE,
                 bold_type=True,
             )
+
             if (
                 before.channel.category == self._model.voice_channel_category
                 and len(list(map(lambda i: not i.bot, before.channel.members))) == 0
-                and any(filter(lambda i: len(i.members) == 0, before.channel.category.channels))  # type: ignore
+                and any(
+                    filter(
+                        lambda i: len(i.members) == 0, # type: ignore
+                        self._model.get_voice_channels(),
+                    )
+                )
             ):
                 channel_name = before.channel.name
                 await self._ctrl.delete_voice_channel(before.channel)  # type: ignore
