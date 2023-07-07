@@ -15,13 +15,14 @@ from typing import TYPE_CHECKING, Generator
 import nextcord
 from nextcord.application_command import SlashOption
 from nextcord.channel import TextChannel
+from nextcord.errors import DiscordException
 from nextcord.ext import commands, tasks
 from nextcord.interactions import Interaction
 from nextcord.message import Attachment
 
-from .errors import UpdateEmbedError
-from .models import ControllerWithEmbed, EmbedModel, Model
-from .utils import InteractionUtils, wait_until_midnight
+from sggwbot.errors import UpdateEmbedError
+from sggwbot.models import ControllerWithEmbed, EmbedModel, Model
+from sggwbot.utils import InteractionUtils, wait_until_midnight
 
 if TYPE_CHECKING:
     from nextcord.embeds import Embed
@@ -65,7 +66,7 @@ class CalendarCog(commands.Cog):
     @InteractionUtils.with_info(
         before="Sending calendar embed...",
         after="The calendar embed has been sent.",
-        catch_errors=True,
+        catch_exceptions=[DiscordException],
     )
     @InteractionUtils.with_log(show_channel=True)
     async def _send(self, interaction: Interaction) -> None:
@@ -90,8 +91,7 @@ class CalendarCog(commands.Cog):
     @InteractionUtils.with_info(
         before="Updating calendar embed...",
         after="The calendar embed has been updated.",
-        catch_errors=True,
-        additional_errors=[UpdateEmbedError],
+        catch_exceptions=[UpdateEmbedError],
     )
     @InteractionUtils.with_log()
     async def _update(
@@ -117,7 +117,7 @@ class CalendarCog(commands.Cog):
     )
     @InteractionUtils.with_info(
         before="Getting calendar embed json...",
-        catch_errors=True,
+        catch_exceptions=[DiscordException],
     )
     @InteractionUtils.with_log()
     async def _get_json(self, interaction: Interaction) -> None:
@@ -138,8 +138,7 @@ class CalendarCog(commands.Cog):
     @InteractionUtils.with_info(
         before="Setting calendar embed json and updating the embed...",
         after="The calendar embed and json file have been updated.",
-        catch_errors=True,
-        additional_errors=[UpdateEmbedError],
+        catch_exceptions=[TypeError, DiscordException, UpdateEmbedError],
     )
     @InteractionUtils.with_log()
     async def _set_json(
@@ -173,11 +172,10 @@ class CalendarCog(commands.Cog):
     @InteractionUtils.with_info(
         before="Adding a new event... **{description}**",
         after="The new event **{description}** has been added.",
-        catch_errors=True,
-        additional_errors=[UpdateEmbedError],
+        catch_exceptions=[UpdateEmbedError],
     )
     @InteractionUtils.with_log()
-    async def _add(
+    async def _add(  # pylint: disable=too-many-arguments
         self,
         _: Interaction,
         description: str = SlashOption(description="The event description"),
@@ -208,7 +206,7 @@ class CalendarCog(commands.Cog):
         name="show_with_indexes",
         description="Show events with indexes.",
     )
-    @InteractionUtils.with_info(catch_errors=True)
+    @InteractionUtils.with_info(catch_exceptions=[DiscordException])
     @InteractionUtils.with_log()
     async def _show(self, interaction: Interaction) -> None:
         """Shows events with their indexes.
@@ -223,16 +221,15 @@ class CalendarCog(commands.Cog):
 
     @_calendar.subcommand(
         name="remove",
-        description="Show events with indexes.",
+        description="Remove an event with the given index.",
     )
     @InteractionUtils.with_info(
         before="Removing event with index **{index}**...",
-        catch_errors=True,
-        additional_errors=[UpdateEmbedError],
+        catch_exceptions=[IndexError, DiscordException, UpdateEmbedError],
     )
     @InteractionUtils.with_log()
     async def _remove(self, interaction: Interaction, index: int) -> None:
-        """Removes an event from the calendar.
+        """Removes an event from the calendar with the given index.
 
         Parameters
         ----------
@@ -249,6 +246,10 @@ class CalendarCog(commands.Cog):
 
         event = self._ctrl.remove_event(index)
         await self._ctrl.update_embed()
+
+        # We edit the original message here
+        # instead of in the `with_info` decorator,
+        # because we don't have access to the event description there.
         msg = await interaction.original_message()
         await msg.edit(f"The event **{event}** has been removed.")
 

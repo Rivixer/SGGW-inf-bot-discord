@@ -5,6 +5,9 @@ A module to control the registration process.
 The registration process is used to register new users.
 """
 
+# pylint: disable=too-many-lines
+
+
 from __future__ import annotations
 
 import asyncio
@@ -27,22 +30,22 @@ from nextcord.channel import TextChannel
 from nextcord.colour import Colour
 from nextcord.embeds import Embed
 from nextcord.enums import TextInputStyle
+from nextcord.errors import DiscordException
 from nextcord.ext import commands
 from nextcord.interactions import Interaction
 from nextcord.ui import Modal, TextInput
 
-from .console import Console, FontColour
-from .errors import RegistrationError
-from .models import Model
-from .utils import InteractionUtils
+from sggwbot.console import Console, FontColour
+from sggwbot.errors import ExceptionData, RegistrationError
+from sggwbot.models import Model
+from sggwbot.utils import InteractionUtils
 
 if TYPE_CHECKING:
     from nextcord.guild import Guild
     from nextcord.member import Member
     from nextcord.message import Message
     from nextcord.role import Role
-
-    from .sggw_bot import SGGWBot
+    from sggw_bot import SGGWBot
 
 
 class RegistrationCog(commands.Cog):
@@ -97,7 +100,18 @@ class RegistrationCog(commands.Cog):
         description="Komenda do zarejestrowania się na tym serwerze.",
         dm_permission=False,
     )
-    @InteractionUtils.with_info(catch_errors=True, with_traceback=False)
+    @InteractionUtils.with_info(
+        catch_exceptions=[
+            ExceptionData(
+                DiscordException,
+                with_traceback_in_response=False,
+            ),
+            ExceptionData(
+                RegistrationError,
+                with_traceback_in_response=False,
+            ),
+        ]
+    )
     @InteractionUtils.with_log(FontColour.GREEN)
     async def _register(
         self,
@@ -173,7 +187,7 @@ class RegistrationCog(commands.Cog):
         name="whois",
         description="Show information about a member.",
     )
-    @InteractionUtils.with_info(catch_errors=True)
+    @InteractionUtils.with_info(catch_exceptions=[DiscordException])
     @InteractionUtils.with_log()
     async def _whois(
         self,
@@ -210,7 +224,7 @@ class RegistrationCog(commands.Cog):
         description="Edit the member info.",
         dm_permission=False,
     )
-    @InteractionUtils.with_info(catch_errors=True)
+    @InteractionUtils.with_info(catch_exceptions=[DiscordException])
     @InteractionUtils.with_log()
     async def _edit_member_info(
         self,
@@ -312,9 +326,9 @@ class MemberInfo:
         member = self.member
 
         member_info = member.name
-        if (member.discriminator != "0"):
+        if member.discriminator != "0":
             member_info += f"#{member.discriminator}"
-        member_info +=  f" ({member.mention})"
+        member_info += f" ({member.mention})"
 
         embed = Embed(
             title="User information:",
@@ -888,7 +902,7 @@ class CodeModal(Modal):
         member = self._member_data.member
         index = self._member_data.index
         bot_channel = self._bot.get_bot_channel()
-        
+
         member_name = member.name
         if member.discriminator != "0":
             member_name += f"#{member.discriminator}"

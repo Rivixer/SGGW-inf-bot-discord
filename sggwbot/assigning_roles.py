@@ -21,13 +21,14 @@ from nextcord.application_command import SlashOption
 from nextcord.channel import TextChannel
 from nextcord.embeds import Embed
 from nextcord.emoji import Emoji
+from nextcord.errors import DiscordException
 from nextcord.ext import commands
 from nextcord.interactions import Interaction
 from nextcord.message import Attachment
 
-from .errors import ChangeMaxGroupsError, UpdateEmbedError
-from .models import ControllerWithEmbed, EmbedModel, Model
-from .utils import InteractionUtils
+from sggwbot.errors import ChangeMaxGroupsError, UpdateEmbedError
+from sggwbot.models import ControllerWithEmbed, EmbedModel, Model
+from sggwbot.utils import InteractionUtils
 
 if TYPE_CHECKING:
     from nextcord.member import Member
@@ -35,7 +36,7 @@ if TYPE_CHECKING:
     from nextcord.raw_models import RawReactionActionEvent
     from nextcord.role import Role
 
-    from .sggw_bot import SGGWBot
+    from sggwbot import SGGWBot
 
 
 class AssigningRolesCog(commands.Cog):
@@ -75,7 +76,7 @@ class AssigningRolesCog(commands.Cog):
     @InteractionUtils.with_info(
         before="Sending assigning_roles embed...",
         after="The assigning_roles embed has been sent.",
-        catch_errors=True,
+        catch_exceptions=[DiscordException],
     )
     @InteractionUtils.with_log(show_channel=True)
     async def _send(self, interaction: Interaction) -> None:
@@ -100,8 +101,7 @@ class AssigningRolesCog(commands.Cog):
     @InteractionUtils.with_info(
         before="Updating assigning_roles embed...",
         after="The assigning_roles embed has been updated.",
-        catch_errors=True,
-        additional_errors=[UpdateEmbedError],
+        catch_exceptions=[UpdateEmbedError],
     )
     @InteractionUtils.with_log()
     async def _update(
@@ -127,7 +127,7 @@ class AssigningRolesCog(commands.Cog):
     )
     @InteractionUtils.with_info(
         before="Getting assigning_roles embed json...",
-        catch_errors=True,
+        catch_exceptions=[DiscordException],
     )
     @InteractionUtils.with_log()
     async def _get_json(self, interaction: Interaction) -> None:
@@ -148,8 +148,7 @@ class AssigningRolesCog(commands.Cog):
     @InteractionUtils.with_info(
         before="Setting assigning_roles embed json and updating the embed...",
         after="The assigning_roles embed and json file have been updated.",
-        catch_errors=True,
-        additional_errors=[UpdateEmbedError],
+        catch_exceptions=[TypeError, DiscordException, UpdateEmbedError],
     )
     @InteractionUtils.with_log()
     async def _set_json(
@@ -184,8 +183,7 @@ class AssigningRolesCog(commands.Cog):
     @InteractionUtils.with_info(
         before="Setting the max number of lab groups to {amount}...",
         after="Max number of lab groups has been set to {amount}.",
-        catch_errors=True,
-        additional_errors=[UpdateEmbedError, ChangeMaxGroupsError],
+        catch_exceptions=[UpdateEmbedError, ChangeMaxGroupsError],
     )
     @InteractionUtils.with_log()
     async def _change_max_groups(

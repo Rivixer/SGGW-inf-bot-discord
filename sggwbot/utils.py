@@ -21,12 +21,12 @@ from typing import (
     ParamSpec,
 )
 
-import nextcord
 from nextcord.channel import TextChannel
 from nextcord.interactions import Interaction
 from nextcord.threads import Thread
 
-from .console import Console, FontColour
+from sggwbot.console import Console, FontColour
+from sggwbot.errors import ExceptionData
 
 if TYPE_CHECKING:
     from nextcord.member import Member
@@ -59,7 +59,8 @@ class InteractionUtils(ABC):
         This decorator should be placed after decorators that set a function as a command.
 
         If the command is a subcommand, its name will be preceded by its parent name.
-        If the command is used in a thread, its name will be preceded by the name of the thread's parent channel.
+        If the command is used in a thread, its name will be preceded
+        by the name of the thread's parent channel.
 
         Parameters
         ----------
@@ -116,9 +117,7 @@ class InteractionUtils(ABC):
         *,
         before: str | None = None,
         after: str | None = None,
-        catch_errors: bool = False,
-        with_traceback: bool = True,
-        additional_errors: list[type[Exception]] | None = None,
+        catch_exceptions: list[type[Exception] | ExceptionData] | None = None,
     ) -> Callable[[_FUNC], _FUNC]:
         """Responds to the interaction an ephemeral message to the user who ran a decorated command.
 
@@ -145,9 +144,28 @@ class InteractionUtils(ABC):
         an error will occur and will be printed as an interaction response. ::
 
             @nextcord.slash_command()
-            @with_info(catch_errors=True, additional_errors=[ZeroDivisionError])
+            @with_info(catch_exceptions=[ZeroDivisionError])
             async def foo(self, interaction: Interaction, a: int, b: int) -> None:
                 await interaction.respond.send_message(f'{a} / {b} = {a/b})
+
+        If an error occurs while running the command,
+        the traceback will be printed by default.
+        You can change this by passing an :class:`ExceptionData` instance
+        with ``with_traceback_in_response`` and ``with_traceback_in_log`` parameters. ::
+
+            @nextcord.slash_command()
+            @with_info(
+                catch_exceptions=[
+                    ExceptionData(
+                        ZeroDivisionError,
+                        with_traceback_in_response=False,
+                        with_traceback_in_log=False,
+                    )
+                ]
+            ),
+            async def foo(self, interaction: Interaction, a: int, b: int) -> None:
+                await interaction.respond.send_message(f'{a} / {b} = {a/b})
+
 
         Parameters
         ----------
@@ -155,31 +173,14 @@ class InteractionUtils(ABC):
             The message to send before the command is run.
         after: :class:`str`
             The message to send after the command is run.
-        catch_errors: :class:`bool`
-            Whether to catch errors that occur while running the command.
-            Defaults to ``False``.
-        with_traceback: :class:`bool`
-            Whether to include a traceback in the error message.
-            Defaults to ``True``.
-        additional_errors: `list[type[:class:Exception]]` | `None`
-            A list of additional errors to catch.
-            Defaults to ``None``.
+        catch_exceptions: list[type[:class:`Exception` | :class:`ExceptionData`]] | `None`
+            An optional list of exception or exception data to catch.
+            Defaults to `None`.
 
         Raises
         ------
         TypeError
             If the command is not a slash command.
-
-        Notes
-        -----
-        If `catch_errors` is ``True``, the following errors will be caught:
-        - :class:`AttributeError`
-        - :class:`IndexError`
-        - :class:`KeyError`
-        - :class:`TypeError`
-        - :class:`ValueError`
-        - :class:`nextcord.DiscordException`
-        - Any errors in `additional_errors`
         """
 
         def decorator(func: _FUNC) -> _FUNC:
@@ -190,57 +191,57 @@ class InteractionUtils(ABC):
                 *args: _P.args,
                 **kwargs: _P.kwargs,
             ) -> Awaitable[Any] | None:
+                async def catch_error(exc: Exception, exc_data: ExceptionData) -> None:
+                    err_msg = f"** [ERROR] ** {exc}"
+
+                    if exc_data.with_traceback_in_response:
+                        trcbck = traceback.format_exc()
+                        err_msg += f"\n```py\n{trcbck}```"
+
+                    if len(err_msg) > 2000:
+                        err_msg = f"{err_msg[:496]}\n\n...\n\n{err_msg[-1496:]}"
+
+                    if not interaction.response.is_done():
+                        await interaction.response.send_message(err_msg, ephemeral=True)
+                    else:
+                        msg = await interaction.original_message()
+                        await msg.edit(content=err_msg)
+
+                    comm_name = InteractionUtils._command_name(interaction)
+                    if exc_data.with_traceback_in_log:
+                        Console.error(f"Error while using /{comm_name}.", exception=exc)
+                    else:
+                        Console.error(f"Error while using /{comm_name}. {exc}")
+
                 if before:
                     await interaction.response.send_message(
                         before.format(**kwargs), ephemeral=True
                     )
 
-                if catch_errors:
-                    try:
-                        result = await func(self, interaction, *args, **kwargs)
-                    except (
-                        AttributeError,
-                        IndexError,
-                        KeyError,
-                        TypeError,
-                        ValueError,
-                        nextcord.DiscordException,
-                        *(additional_errors or []),
-                    ) as e:
-                        err_msg = f"** [ERROR] ** {e}"
+                try:
+                    result = await func(self, interaction, *args, **kwargs)
+                except Exception as e:  # pylint: disable=broad-except
+                    for exc_data in catch_exceptions or []:
+                        if isinstance(exc_data, type):
+                            exc_data = ExceptionData(exc_data)
 
-                        if with_traceback:
-                            trcbck = traceback.format_exc()
-                            err_msg += f"\n```py\n{trcbck}```"
-
-                        if len(err_msg) > 2000:
-                            err_msg = f"{err_msg[:496]}\n\n...\n\n{err_msg[-1496:]}"
-
+                        if isinstance(e, exc_data.type):
+                            await catch_error(e, exc_data)
+                            break
+                    else:
+                        raise e
+                else:
+                    if after:
                         if not interaction.response.is_done():
                             await interaction.response.send_message(
-                                err_msg, ephemeral=True
+                                after.format(**kwargs), ephemeral=True
                             )
                         else:
                             msg = await interaction.original_message()
-                            await msg.edit(content=err_msg)
-                        comm_name = InteractionUtils._command_name(interaction)
-                        return Console.error(
-                            f"Error while using /{comm_name}.", exception=e
-                        )
-                else:
-                    result = await func(self, interaction, *args, **kwargs)
+                            if not msg.content.startswith("**[ERROR]**"):
+                                await msg.edit(content=after.format(**kwargs))
 
-                if after:
-                    if not interaction.response.is_done():
-                        await interaction.response.send_message(
-                            after.format(**kwargs), ephemeral=True
-                        )
-                    else:
-                        msg = await interaction.original_message()
-                        if not msg.content.startswith("**[ERROR]**"):
-                            await msg.edit(content=after.format(**kwargs))
-
-                return result
+                    return result
 
             return wrapper
 

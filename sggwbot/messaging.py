@@ -11,21 +11,23 @@ import nextcord
 from nextcord.application_command import SlashOption
 from nextcord.channel import TextChannel
 from nextcord.embeds import Embed
+from nextcord.errors import DiscordException
 from nextcord.ext import commands
 from nextcord.file import File
 from nextcord.interactions import Interaction
 from nextcord.message import Attachment, MessageReference
 from nextcord.threads import Thread
 
-from .console import Console, FontColour
-from .errors import AttachmentError, SGGWBotError
-from .utils import InteractionUtils
+from sggwbot.console import Console, FontColour
+from sggwbot.errors import AttachmentError
+from sggwbot.utils import InteractionUtils
 
 if TYPE_CHECKING:
-    from .sggw_bot import SGGWBot
+    from sggw_bot import SGGWBot
 
 
 class MessagingCog(commands.Cog):
+    """A cog to control bot messages."""
 
     __slots__ = ("_bot",)
 
@@ -75,8 +77,7 @@ class MessagingCog(commands.Cog):
     @InteractionUtils.with_info(
         before="Sending a message...",
         after="The message has been sent.",
-        catch_errors=True,
-        additional_errors=[AttachmentError],
+        catch_exceptions=[ValueError, DiscordException, AttachmentError],
     )
     @InteractionUtils.with_log(show_channel=True)
     async def _send(  # pylint: disable=too-many-arguments
@@ -146,8 +147,7 @@ class MessagingCog(commands.Cog):
     @InteractionUtils.with_info(
         before="Editing the message...",
         after="The message has been edited.",
-        catch_errors=True,
-        additional_errors=[AttachmentError],
+        catch_exceptions=[ValueError, DiscordException, AttachmentError],
     )
     @InteractionUtils.with_log(show_channel=True)
     async def _edit(  # pylint: disable=too-many-arguments
@@ -201,8 +201,7 @@ class MessagingCog(commands.Cog):
     @InteractionUtils.with_info(
         before="Editing the message...",
         after="The message has been edited.",
-        catch_errors=True,
-        additional_errors=[AttachmentError],
+        catch_exceptions=[ValueError, DiscordException, AttachmentError],
     )
     @InteractionUtils.with_log(show_channel=True)
     async def _remove(
@@ -254,7 +253,7 @@ class MessagingCog(commands.Cog):
     @InteractionUtils.with_info(
         before="Adding the reaction... {emoji}",
         after="The reaction {emoji} has been added.",
-        catch_errors=True,
+        catch_exceptions=[ValueError, DiscordException],
     )
     @InteractionUtils.with_log(show_channel=True)
     async def _add_reaction(
@@ -284,8 +283,7 @@ class MessagingCog(commands.Cog):
     @InteractionUtils.with_info(
         before="Adding reactions... {emojis}",
         after="Reactions {emojis} have been added.",
-        catch_errors=True,
-        additional_errors=[SGGWBotError],
+        catch_exceptions=[ValueError, DiscordException],
     )
     @InteractionUtils.with_log(show_channel=True)
     async def _add_reactions(
@@ -317,7 +315,7 @@ class MessagingCog(commands.Cog):
 
         if unadded_emojis:
             reason = "\n".join(f"{emoji}: {e}" for emoji, e in unadded_emojis.items())
-            raise SGGWBotError(f"Could not add the following emojis:\n{reason}")
+            raise ValueError(f"Could not add the following emojis:\n{reason}")
 
     @_message.subcommand(
         name="remove_reaction",
@@ -326,7 +324,7 @@ class MessagingCog(commands.Cog):
     @InteractionUtils.with_info(
         before="Removing the reaction... {emoji}",
         after="The reaction {emoji} has been removed.",
-        catch_errors=True,
+        catch_exceptions=[ValueError, DiscordException],
     )
     @InteractionUtils.with_log(show_channel=True)
     async def _remove_reaction(
@@ -355,7 +353,7 @@ class MessagingCog(commands.Cog):
     )
     @InteractionUtils.with_info(
         before="Getting the embed...",
-        catch_errors=True,
+        catch_exceptions=[ValueError, DiscordException],
     )
     @InteractionUtils.with_log(show_channel=True)
     async def _get_embed(

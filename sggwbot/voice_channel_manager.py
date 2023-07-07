@@ -13,19 +13,25 @@ from __future__ import annotations
 
 import asyncio
 import random
+from typing import TYPE_CHECKING
 
 import nextcord
 from nextcord.application_command import SlashOption
-from nextcord.channel import CategoryChannel, VoiceChannel
+from nextcord.channel import VoiceChannel
+from nextcord.errors import DiscordException
 from nextcord.ext import commands, tasks
 from nextcord.interactions import Interaction
-from nextcord.member import Member, VoiceState
 
 from sggwbot.console import Console, FontColour
-from sggwbot.errors import NoVoiceConnection
+from sggwbot.errors import ExceptionData, NoVoiceConnection
 from sggwbot.models import Controller, Model
-from sggwbot.sggw_bot import SGGWBot
 from sggwbot.utils import InteractionUtils
+
+if TYPE_CHECKING:
+    from nextcord.channel import CategoryChannel
+    from nextcord.member import Member, VoiceState
+
+    from sggwbot.sggw_bot import SGGWBot
 
 
 class VoiceChananelManagerCog(commands.Cog):
@@ -73,10 +79,16 @@ class VoiceChananelManagerCog(commands.Cog):
                 FontColour.BLUE,
                 bold_type=True,
             )
+
             if (
                 before.channel.category == self._model.voice_channel_category
                 and len(list(map(lambda i: not i.bot, before.channel.members))) == 0
-                and any(filter(lambda i: len(i.members) == 0, before.channel.category.channels))  # type: ignore
+                and any(
+                    filter(
+                        lambda i: len(i.members) == 0, # type: ignore
+                        self._model.get_voice_channels(),
+                    )
+                )
             ):
                 channel_name = before.channel.name
                 await self._ctrl.delete_voice_channel(before.channel)  # type: ignore
@@ -113,9 +125,17 @@ class VoiceChananelManagerCog(commands.Cog):
     @InteractionUtils.with_info(
         before="Changing the limit to {limit}...",
         after="The limit has been changed.",
-        catch_errors=True,
-        with_traceback=False,
-        additional_errors=[NoVoiceConnection],
+        catch_exceptions=[
+            ExceptionData(
+                DiscordException,
+                with_traceback_in_response=False,
+            ),
+            ExceptionData(
+                NoVoiceConnection,
+                with_traceback_in_response=False,
+                with_traceback_in_log=False,
+            ),
+        ],
     )
     @InteractionUtils.with_log()
     async def _limit(
@@ -161,9 +181,22 @@ class VoiceChananelManagerCog(commands.Cog):
     @InteractionUtils.with_info(
         before="Changing the name to {name}...",
         after="The name has been changed.",
-        catch_errors=True,
-        with_traceback=False,
-        additional_errors=[TimeoutError, NoVoiceConnection],
+        catch_exceptions=[
+            ExceptionData(
+                DiscordException,
+                with_traceback_in_response=False,
+            ),
+            ExceptionData(
+                TimeoutError,
+                with_traceback_in_response=False,
+                with_traceback_in_log=False,
+            ),
+            ExceptionData(
+                NoVoiceConnection,
+                with_traceback_in_response=False,
+                with_traceback_in_log=False,
+            ),
+        ],
     )
     @InteractionUtils.with_log()
     async def _name(
@@ -250,14 +283,19 @@ class VoiceChannelManagerController(Controller):
         self._model = model
 
     async def create_new_channel(self) -> VoiceChannel:
-        """Creates a new voice channel."""
+        """|coro|
+
+        Creates a new voice channel.
+        """
         category = self._model.voice_channel_category
         name = self._model.get_next_voice_channel_name()
         channel = await category.create_voice_channel(name=name)
         return channel
 
     async def delete_voice_channel(self, channel: VoiceChannel) -> None:
-        """Deletes a voice channel.
+        """|coro|
+
+        Deletes a voice channel.
 
         Parameters
         ----------
@@ -269,7 +307,9 @@ class VoiceChannelManagerController(Controller):
             await channel.delete()
 
     async def change_channel_name(self, channel: VoiceChannel, name: str) -> None:
-        """Changes the name of a voice channel.
+        """|coro|
+
+        Changes the name of a voice channel.
 
         Parameters
         ----------

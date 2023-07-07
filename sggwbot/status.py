@@ -10,14 +10,15 @@ import nextcord
 from nextcord.activity import Activity
 from nextcord.application_command import SlashOption
 from nextcord.enums import ActivityType
+from nextcord.errors import DiscordException
 from nextcord.ext import commands
 from nextcord.interactions import Interaction
 
-from .console import Console
-from .utils import InteractionUtils
+from sggwbot.console import Console
+from sggwbot.utils import InteractionUtils
 
 if TYPE_CHECKING:
-    from .sggw_bot import SGGWBot
+    from sggwbot import SGGWBot
 
 
 class StatusCog(commands.Cog):
@@ -43,7 +44,7 @@ class StatusCog(commands.Cog):
     @InteractionUtils.with_info(
         before="Changing status...",
         after="Status has been changed to: **{activity_type} *{text}***",
-        catch_errors=True,
+        catch_exceptions=[DiscordException],
     )
     @InteractionUtils.with_log()
     async def _status(
