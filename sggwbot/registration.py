@@ -38,7 +38,7 @@ from nextcord.ui import Modal, TextInput
 from sggwbot.console import Console, FontColour
 from sggwbot.errors import ExceptionData, RegistrationError
 from sggwbot.models import Model
-from sggwbot.utils import InteractionUtils
+from sggwbot.utils import InteractionUtils, MemberUtils
 
 if TYPE_CHECKING:
     from nextcord.guild import Guild
@@ -325,9 +325,7 @@ class MemberInfo:
         """Converts the member info to an embed."""
         member = self.member
 
-        member_info = member.name
-        if member.discriminator != "0":
-            member_info += f"#{member.discriminator}"
+        member_info = MemberUtils.convert_to_string(member)
         member_info += f" ({member.mention})"
 
         embed = Embed(
@@ -902,10 +900,7 @@ class CodeModal(Modal):
         member = self._member_data.member
         index = self._member_data.index
         bot_channel = self._bot.get_bot_channel()
-
-        member_name = member.name
-        if member.discriminator != "0":
-            member_name += f"#{member.discriminator}"
+        member_name = MemberUtils.convert_to_string(member)
 
         embed = (
             Embed(
@@ -1033,9 +1028,7 @@ class MailController:
         with open(path, "r", encoding="utf-8") as f:
             text = f.read()
 
-        display_name = self._member.display_name
-        if self._member.discriminator != "0":
-            display_name += f"#{self._member.discriminator}"
+        display_name = MemberUtils.convert_to_string(self._member)
 
         text = (
             text.replace("{{USER_DISPLAY_NAME}}", display_name)
