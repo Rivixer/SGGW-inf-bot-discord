@@ -893,8 +893,10 @@ class CodeModal(Modal):
 
         Console.specific(
             f"User {self._member_data.member} has been registered.",
-            "registration",
-            FontColour.GREEN,
+            "Registration",
+            FontColour.CYAN,
+            bold_type=True,
+            bold_text=True,
         )
 
         member = self._member_data.member
@@ -1095,7 +1097,9 @@ class MailController:
             f"Email with code {self._code_model.code} has been sent to "
             f"{self.destination_address}",
             "Registration",
-            FontColour.GREEN,
+            FontColour.CYAN,
+            bold_type=True,
+            bold_text=True,
         )
 
 
