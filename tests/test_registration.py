@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from pathlib import Path
 
@@ -21,36 +20,9 @@ from sggwbot.registration import (
     RegistrationModel,
 )
 
+from .mocks import *
+
 TEST_JSON_PATH = Path("test_registration.json")
-
-
-@dataclass
-class RoleMock:
-    name: str
-    id: int
-    colour: int
-
-    @property
-    def mention(self) -> str:
-        return f"<@&{self.id}>"
-
-
-class DefaultRole(RoleMock):
-    def __init__(self) -> None:
-        super().__init__("everyone", 0, 0x0)
-
-
-class GuildMock:
-    default_role: RoleMock = DefaultRole()
-    members: list[MemberMock] = []
-
-    def get_member(self, member_id: int) -> MemberMock | None:
-        for member in self.members:
-            if member.id == member_id:
-                return member
-
-
-GUILD = GuildMock()
 
 
 @pytest.fixture
@@ -60,8 +32,10 @@ def member1() -> MemberMock:
         nick="TestNick1",
         discriminator="1234",
         id=1234567890,
-        roles=[],
-        guild=GUILD,
+        roles=[
+            RoleMock("role1", 123, colour=0x111111),
+            RoleMock("role2", 456, colour=0x222222),
+        ],
     )
 
 
@@ -73,15 +47,7 @@ def member2() -> MemberMock:
         discriminator="1235",
         id=1234567891,
         roles=[],
-        guild=GUILD,
     )
-
-
-@pytest.fixture
-def guild(member1: MemberMock, member2: MemberMock) -> GuildMock:
-    guild = GUILD
-    guild.members = [member1, member2]
-    return guild
 
 
 @pytest.fixture
@@ -93,48 +59,10 @@ def member_data(monkeypatch: MonkeyPatch, member1: MemberMock) -> MemberData:
     return member_data
 
 
-class BotMock:
-    def get_default_guild(self) -> GuildMock:
-        return GUILD
-
-
-@dataclass
-class AvatarMock:
-    url: str
-
-
-@dataclass
-class MemberMock:
-    name: str
-    nick: str
-    discriminator: str
-    id: int
-    roles: list[RoleMock]
-    guild: GuildMock = GUILD
-    avatar: AvatarMock = field(init=False)
-
-    def __post_init__(self) -> None:
-        if not self.roles:
-            self.roles = [
-                RoleMock("Role1", 123, 0x111111),
-                RoleMock("Role2", 456, 0x222222),
-            ]
-        self.avatar = AvatarMock("link.png")
-
-    @property
-    def top_role(self) -> RoleMock:
-        return self.roles[0]
-
-    @property
-    def mention(self) -> str:
-        return f"<@{self.id}>"
-
-    @property
-    def display_name(self) -> str:
-        return self.nick or self.name
-
-
 def test_member_info_to_embed(member1: MemberMock) -> None:
+    guild = GuildMock()
+    member1.guild = guild
+
     data = {
         "FirstName": "First",
         "LastName": "Last",
@@ -169,10 +97,11 @@ def test_matching_members(
     monkeypatch: MonkeyPatch,
     member1: MemberMock,
     member2: MemberMock,
-    guild: GuildMock,
 ) -> None:
     monkeypatch.setattr(RegistrationModel, "_registered_users_path", TEST_JSON_PATH)
-    registration_model = RegistrationModel(BotMock())  # type: ignore
+    guild = GuildMock()
+    registration_model = RegistrationModel(BotMock(guild))  # type: ignore
+
     member1.guild = guild
     member2.guild = guild
 
