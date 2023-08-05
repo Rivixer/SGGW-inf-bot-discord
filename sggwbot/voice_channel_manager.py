@@ -76,7 +76,7 @@ class VoiceChananelManagerCog(commands.Cog):
             Console.specific(
                 f"{member.display_name} left.",
                 before.channel.name,
-                FontColour.BLUE,
+                FontColour.GREEN,
                 bold_type=True,
             )
 
@@ -85,7 +85,7 @@ class VoiceChananelManagerCog(commands.Cog):
                 and len(list(map(lambda i: not i.bot, before.channel.members))) == 0
                 and any(
                     filter(
-                        lambda i: len(i.members) == 0, # type: ignore
+                        lambda i: len(i.members) == 0,  # type: ignore
                         self._model.get_voice_channels(),
                     )
                 )
@@ -95,15 +95,16 @@ class VoiceChananelManagerCog(commands.Cog):
                 Console.specific(
                     "Channel has been deleted.",
                     channel_name,
-                    FontColour.BLUE,
+                    FontColour.GREEN,
                     bold_type=True,
+                    bold_text=True,
                 )
 
         if after.channel:
             Console.specific(
                 f"{member.display_name} joined.",
                 after.channel.name,
-                FontColour.BLUE,
+                FontColour.GREEN,
                 bold_type=True,
             )
             if (
@@ -114,8 +115,9 @@ class VoiceChananelManagerCog(commands.Cog):
                 Console.specific(
                     "Channel has been created.",
                     created_channel.name,
-                    FontColour.BLUE,
+                    FontColour.GREEN,
                     bold_type=True,
+                    bold_text=True,
                 )
 
     @nextcord.slash_command(

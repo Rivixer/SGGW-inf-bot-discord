@@ -15,11 +15,9 @@ from sggwbot.calendar import (
     Event,
 )
 
+from .mocks import *
+
 TEST_JSON_PATH = Path("test_calendar.json")
-
-
-class BotMock:
-    pass
 
 
 @pytest.fixture
@@ -32,7 +30,7 @@ def model(monkeypatch: MonkeyPatch) -> Generator[CalendarModel, None, None]:
 
 @pytest.fixture
 def ctrl(model: CalendarModel) -> CalendarController:
-    embed_model = CalendarEmbedModel(model, BotMock())  # type: ignore
+    embed_model = CalendarEmbedModel(model, BotMock(GuildMock()))  # type: ignore
     return CalendarController(model, embed_model)
 
 
