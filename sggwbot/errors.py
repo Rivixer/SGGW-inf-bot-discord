@@ -14,10 +14,6 @@ class UpdateEmbedError(SGGWBotError):
     """Cannot update the embed."""
 
 
-class ChangeMaxGroupsError(SGGWBotError):
-    """Changing max numbers of groups failed."""
-
-
 class RegistrationError(SGGWBotError):
     """Registration failed."""
 
