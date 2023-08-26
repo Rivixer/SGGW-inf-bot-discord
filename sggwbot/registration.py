@@ -214,6 +214,7 @@ class RegistrationCog(commands.Cog):
     @nextcord.slash_command(
         name="whois",
         description="Show information about a member.",
+        dm_permission=False,
     )
     @InteractionUtils.with_info(catch_exceptions=[DiscordException])
     @InteractionUtils.with_log()
