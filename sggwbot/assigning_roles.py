@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: MIT
-"""A module to control the assigning_roles embed.
+"""A module to control the 'assigning_roles' embed.
 
-The assigning_roles embed is used to assign roles to users based on their group.
-(e.g. laboratory group, faculty group, etc.)
+The 'assigning_roles' embed is used to assign roles to users
+based on their groups (e.g. laboratory group, faculty group, etc.).
 
-The user's roles are updated when a user reacts to the embed
-with an emoji corresponding to a group.
+Users' roles are updated when they react to the embed
+with an emoji corresponding to their group.
 
-The assigning_roles embed is sent to the channel
+The 'assigning_roles' embed is sent to the channel
 where the command '/assigning_roles send' was used.
 """
 
@@ -226,8 +226,8 @@ class ServerRole:
     ----------
     role_id: :class:`int`
         The ID of the role.
-    descrption: :class:`str`
-        The descrption of the role.
+    description: :class:`str`
+        The description of the role.
         Used to inform the user in embed what this role is for.
     emoji: :class:`str`
         The emoji that represents the role.
