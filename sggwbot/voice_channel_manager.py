@@ -123,6 +123,7 @@ class VoiceChananelManagerCog(commands.Cog):
     @nextcord.slash_command(
         name="limit",
         description="Set the limit of the voice channel you are in.",
+        dm_permission=False,
     )
     @InteractionUtils.with_info(
         before="Changing the limit to {limit}...",
@@ -179,6 +180,7 @@ class VoiceChananelManagerCog(commands.Cog):
     @nextcord.slash_command(
         name="name",
         description="Set the name of the voice channel you are in. (max 2 times per 10 minutes)",
+        dm_permission=False,
     )
     @InteractionUtils.with_info(
         before="Changing the name to {name}...",

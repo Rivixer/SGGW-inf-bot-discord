@@ -156,36 +156,65 @@ class RegistrationCog(commands.Cog):
                     await interaction.response.send_message(reason, ephemeral=True)
                     return
 
-                with MailController(member, index, code_model) as mail:
+                mail_ctrl = MailController(member, index, code_model)
+                destination_address = mail_ctrl.destination_address
+
+                async def send_mail_if_should() -> None:
                     if code_model.should_send_email(index):
-                        await mail.send_mail()
-                    destination_address = mail.destination_address
+                        await mail_ctrl.send_mail()
 
-            verifided_role = self._model.get_verified_role(member.guild)
-            if verifided_role is None:
-                raise RegistrationError("Verified role not found.")
+                async def send_modal() -> None:
+                    verifided_role = self._model.get_verified_role(member.guild)
+                    if verifided_role is None:
+                        raise RegistrationError("Verified role not found.")
 
-            modal = CodeModal(
-                self._bot,
-                verifided_role,
-                code_model,
-                member_data,
-                destination_address,
-            )
-            await interaction.response.send_modal(modal)
+                    modal = CodeModal(
+                        self._bot,
+                        verifided_role,
+                        code_model,
+                        member_data,
+                        destination_address,
+                    )
+                    await interaction.response.send_modal(modal)
+
+                await asyncio.gather(
+                    send_mail_if_should(),
+                    send_modal(),
+                )
         except RegistrationError as e:
+
+            async def send_error_to_member() -> None:
+                await member.send(
+                    "Wysłanie maila z kodem, potrzebnym "
+                    "do zarejestrowania się na serwerze "
+                    f"**{self._bot.get_default_guild().name}**, "
+                    "nie powiodło się.\n"
+                    "Administracja została powiadomiona o problemie.\n"
+                    "Spróbuj ponownie później.\n"
+                    "Przepraszamy za problemy.",
+                    delete_after=600,
+                )
+
+            async def send_error_to_bot_channel() -> None:
+                bot_channel = self._bot.get_bot_channel()
+                default_role = self._bot.get_default_guild().default_role
+                await bot_channel.send(
+                    f"{default_role.mention}\n"
+                    f"**Sending email to {member.mention} failed!**\n"
+                    f"```{str(e)[-3800:]}```",
+                )
+
             Console.error("Sending email failed.", exception=e)
-            await interaction.response.send_message(
-                "Nie udało się wysłać maila z kodem.\n"
-                "Spróbuj ponownie później.\n"
-                "Przepraszamy za problemy.",
-                ephemeral=True,
-                delete_after=60,
+
+            await asyncio.gather(
+                send_error_to_member(),
+                send_error_to_bot_channel(),
             )
 
     @nextcord.slash_command(
         name="whois",
         description="Show information about a member.",
+        dm_permission=False,
     )
     @InteractionUtils.with_info(catch_exceptions=[DiscordException])
     @InteractionUtils.with_log()
@@ -1012,6 +1041,9 @@ class MailController:
     _code_model: CodeModel
     _destination_domain: str = field(init=False)
 
+    def __post_init__(self) -> None:
+        self._load_destination_domain()
+
     @property
     def destination_address(self) -> str:
         """Returns the destination address."""
@@ -1057,13 +1089,6 @@ class MailController:
         message["To"] = f"s{self._index}@{self._destination_domain}"
         message.attach(self._mail_text)
         return message
-
-    def __enter__(self) -> MailController:
-        self._load_destination_domain()
-        return self
-
-    def __exit__(self, *_) -> None:
-        pass
 
     async def send_mail(self) -> None:
         """|coro|

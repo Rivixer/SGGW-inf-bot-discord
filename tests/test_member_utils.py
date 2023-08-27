@@ -1,7 +1,5 @@
 # pylint: disable-all
 
-import nextcord
-
 from sggwbot.utils import MemberUtils
 
 from .mocks import *
