@@ -19,7 +19,7 @@ __title__ = "SGGW-inf-bot-discord"
 __author__ = "Wiktor Jaworski"
 __license__ = "MIT"
 __copyright__ = "Copyright 2023 Wiktor Jaworski"
-__version__ = "0.7.3"
+__version__ = "0.7.4"
 
 from . import console, errors, utils
 from .sggw_bot import SGGWBot
