@@ -125,7 +125,7 @@ class SGGWBot(commands.Bot):
 
     def _load_cogs(self) -> None:
         paths = [
-            "sggwbot.assigning_roles.py",
+            "sggwbot.role_assignment.py",
             "sggwbot.information.py",
             "sggwbot.project.py",
             "sggwbot.calendar.py",
