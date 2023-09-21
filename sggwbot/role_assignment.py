@@ -38,7 +38,7 @@ from nextcord.message import Attachment
 
 from sggwbot.errors import UpdateEmbedError
 from sggwbot.models import ControllerWithEmbed, EmbedModel, Model
-from sggwbot.utils import Console, FontColour, InteractionUtils
+from sggwbot.utils import Console, FontColour, InteractionUtils, MemberUtils
 
 if TYPE_CHECKING:
     from nextcord.member import Member
@@ -273,14 +273,27 @@ class RoleAssignment(commands.Cog):
             else:
                 reaction = nextcord.utils.get(message.reactions, emoji=emoji.name)
 
+            async def remove_reaction():
+                await message.remove_reaction(emoji, member)
+
             if (
                 reaction is None
                 or self._bot.user not in await reaction.users().flatten()
             ):
-                return await message.remove_reaction(emoji, member)
+                return await remove_reaction()
 
-            await controller.change_role(emoji, member)
-            await message.remove_reaction(reaction, member)
+            async def change_role():
+                added_role = await controller.change_role(emoji, member)
+                Console.specific(
+                    f"{MemberUtils.convert_to_string(member)} changed their group to {added_role.name}.",
+                    "roles",
+                    colour=FontColour.GREEN,
+                )
+
+            await asyncio.gather(
+                change_role(),
+                remove_reaction(),
+            )
         except nextcord.DiscordException:
             return
 
@@ -482,7 +495,7 @@ class RoleAssignmentController(ControllerWithEmbed):
     embed_model: RoleAssignmentEmbedModel
     model: RoleAssignmentModel
 
-    async def change_role(self, emoji: PartialEmoji, member: Member) -> None:
+    async def change_role(self, emoji: PartialEmoji, member: Member) -> Role:
         """|coro|
 
         Assigns the member the role corresponding to the emoji and removes other roles.
@@ -493,6 +506,11 @@ class RoleAssignmentController(ControllerWithEmbed):
             The emoji that the user reacted to.
         member: :class:`nextcord.Member`
             The member who reacted to the embed message.
+
+        Returns
+        -------
+        :class:`nextcord.Role`
+            The role that has been assigned to the member.
 
         Raises
         ------
@@ -525,6 +543,8 @@ class RoleAssignmentController(ControllerWithEmbed):
             member.remove_roles(*roles_to_remove),
             member.add_roles(role_to_add),
         )
+
+        return role_to_add
 
 
 def setup(bot: SGGWBot):
