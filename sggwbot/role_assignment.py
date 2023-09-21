@@ -22,7 +22,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Concatenate, ParamSpec
 
@@ -324,6 +324,7 @@ class ServerRole:
     role_id: int
     description: str
     emoji: str
+    additional_role_ids_to_remove: list[int] = field(default_factory=list)
 
     @property
     def info(self) -> str:
@@ -512,6 +513,10 @@ class RoleAssignmentController(ControllerWithEmbed):
                 role_to_add = role
             elif role in member.roles:
                 roles_to_remove.append(role)
+
+            for member_role in member.roles:
+                if member_role.id in server_role.additional_role_ids_to_remove:
+                    roles_to_remove.append(member_role)
 
         if role_to_add is None:
             raise AttributeError(f"Role with '{emoji}' not exists")
