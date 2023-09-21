@@ -259,9 +259,8 @@ class RoleAssignment(commands.Cog):
         if not isinstance(channel, TextChannel):
             return
 
-        for ctrl in self._controllers.values():
-            if payload.message_id == ctrl.message_id:
-                controller = ctrl
+        for controller in self._controllers.values():
+            if payload.message_id == controller.message_id:
                 break
         else:
             return
@@ -284,11 +283,20 @@ class RoleAssignment(commands.Cog):
 
             async def change_role():
                 added_role = await controller.change_role(emoji, member)
-                Console.specific(
-                    f"{MemberUtils.convert_to_string(member)} changed their group to {added_role.name}.",
-                    "roles",
-                    colour=FontColour.GREEN,
-                )
+                if added_role is not None:
+                    Console.specific(
+                        f"{MemberUtils.convert_to_string(member)} "
+                        f"changed their group to {added_role.name}.",
+                        "roles",
+                        colour=FontColour.GREEN,
+                    )
+                else:
+                    Console.specific(
+                        f"{MemberUtils.convert_to_string(member)} "
+                        f"reset {controller.model.identifier} roles.",
+                        "roles",
+                        colour=FontColour.GREEN,
+                    )
 
             await asyncio.gather(
                 change_role(),
@@ -495,7 +503,7 @@ class RoleAssignmentController(ControllerWithEmbed):
     embed_model: RoleAssignmentEmbedModel
     model: RoleAssignmentModel
 
-    async def change_role(self, emoji: PartialEmoji, member: Member) -> Role:
+    async def change_role(self, emoji: PartialEmoji, member: Member) -> Role | None:
         """|coro|
 
         Assigns the member the role corresponding to the emoji and removes other roles.
@@ -521,10 +529,13 @@ class RoleAssignmentController(ControllerWithEmbed):
         role_to_add: Role | None = None
         roles_to_remove: list[Role] = []
         reaction = str(emoji)
+        only_reset = False
 
         for server_role in self.model.roles:
             role = member.guild.get_role(server_role.role_id)
             if role is None:
+                if server_role.role_id == 0:
+                    only_reset = True
                 continue  # pragma: no cover
 
             if reaction == server_role.emoji:
@@ -536,12 +547,16 @@ class RoleAssignmentController(ControllerWithEmbed):
                 if member_role.id in server_role.additional_role_ids_to_remove:
                     roles_to_remove.append(member_role)
 
-        if role_to_add is None:
+        if role_to_add is None and not only_reset:
             raise AttributeError(f"Role with '{emoji}' not exists")
+
+        async def add_role():
+            if role_to_add is not None:
+                await member.add_roles(role_to_add)
 
         await asyncio.gather(
             member.remove_roles(*roles_to_remove),
-            member.add_roles(role_to_add),
+            add_role(),
         )
 
         return role_to_add
