@@ -534,18 +534,17 @@ class RoleAssignmentController(ControllerWithEmbed):
         for server_role in self.model.roles:
             role = member.guild.get_role(server_role.role_id)
             if role is None:
-                if server_role.role_id == 0:
+                if server_role.role_id == 0 and reaction == server_role.emoji:
                     only_reset = True
                 continue  # pragma: no cover
 
             if reaction == server_role.emoji:
                 role_to_add = role
+                for member_role in member.roles:
+                    if member_role.id in server_role.additional_role_ids_to_remove:
+                        roles_to_remove.append(member_role)
             elif role in member.roles:
                 roles_to_remove.append(role)
-
-            for member_role in member.roles:
-                if member_role.id in server_role.additional_role_ids_to_remove:
-                    roles_to_remove.append(member_role)
 
         if role_to_add is None and not only_reset:
             raise AttributeError(f"Role with '{emoji}' not exists")
