@@ -86,7 +86,7 @@ class CalendarCog(commands.Cog):
 
     @_calendar.subcommand(
         name="update",
-        description="Update the dalendar embed.",
+        description="Update the calendar embed.",
     )
     @InteractionUtils.with_info(
         before="Updating calendar embed...",
@@ -113,7 +113,7 @@ class CalendarCog(commands.Cog):
 
     @_calendar.subcommand(
         name="get_json",
-        description="Get the dalendar embed json.",
+        description="Get the calendar embed json.",
     )
     @InteractionUtils.with_info(
         before="Getting calendar embed json...",
