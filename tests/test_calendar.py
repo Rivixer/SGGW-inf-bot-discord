@@ -216,11 +216,11 @@ def test_remove_event_with_index(
     ctrl: CalendarController, model: CalendarModel, datetime: dt.datetime
 ) -> None:
     with pytest.raises(IndexError):
-        ctrl.remove_event(0)
+        ctrl.remove_event_at_index(0)
     model.add_event_to_json("test1", datetime, "", "", True)
     with pytest.raises(IndexError):
-        ctrl.remove_event(0)
+        ctrl.remove_event_at_index(0)
     with pytest.raises(IndexError):
-        ctrl.remove_event(2)
-    ctrl.remove_event(1)
+        ctrl.remove_event_at_index(2)
+    ctrl.remove_event_at_index(1)
     assert model.calendar_data == []

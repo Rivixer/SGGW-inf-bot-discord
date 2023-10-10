@@ -19,6 +19,7 @@ from nextcord.errors import DiscordException
 from nextcord.ext import commands, tasks
 from nextcord.interactions import Interaction
 from nextcord.message import Attachment
+from nextcord.ui import Modal, TextInput
 
 from sggwbot.errors import UpdateEmbedError
 from sggwbot.models import ControllerWithEmbed, EmbedModel, Model
@@ -169,38 +170,38 @@ class CalendarCog(commands.Cog):
         name="add",
         description="Add a new event",
     )
+    @InteractionUtils.with_info(catch_exceptions=[UpdateEmbedError, ValueError])
+    @InteractionUtils.with_log()
+    async def _add(self, interaction: Interaction) -> None:
+        modal = EventModal("Add a new event", self._ctrl)
+        await interaction.response.send_modal(modal)
+
+    @_calendar.subcommand(
+        name="edit",
+        description="Edit an event",
+    )
     @InteractionUtils.with_info(
-        before="Adding a new event... **{description}**",
-        after="The new event **{description}** has been added.",
-        catch_exceptions=[UpdateEmbedError],
+        catch_exceptions=[
+            UpdateEmbedError,
+            ValueError,
+            IndexError,
+        ],
     )
     @InteractionUtils.with_log()
-    async def _add(  # pylint: disable=too-many-arguments
+    async def _edit(
         self,
-        _: Interaction,
-        description: str = SlashOption(description="The event description"),
-        date: str = SlashOption(
-            description="The date (format: `dd.mm.yyyy` e.g. `9.10.2022`)"
-        ),
-        time: str = SlashOption(
-            description="The time (format `hh.mm` e.g. `12.34`). "
-            "If not specified, it will be an all day event",
-            required=False,
-            default=None,
-        ),
-        prefix: str = SlashOption(
-            description="The prefix (e.g. `gr.1,2`)",
-            required=False,
-            default="",
-        ),
-        location: str = SlashOption(
-            description="The location (e.g. `Aula IV`)",
-            required=False,
-            default="",
+        interaction: Interaction,
+        id: int = SlashOption(
+            description="The index of the event to edit started from 1.",
         ),
     ) -> None:
-        self._ctrl.add_event(description, date, time, prefix, location)
-        await self._ctrl.update_embed()
+        event = self._ctrl.model.calendar_data[id - 1]
+        modal = EventModal(
+            "Edit an event",
+            self._ctrl,
+            event=event,
+        )
+        await interaction.response.send_modal(modal)
 
     @_calendar.subcommand(
         name="show_with_indexes",
@@ -244,7 +245,7 @@ class CalendarCog(commands.Cog):
             The embed could not be updated.
         """
 
-        event = self._ctrl.remove_event(index)
+        event = self._ctrl.remove_event_at_index(index)
         await self._ctrl.update_embed()
 
         # We edit the original message here
@@ -381,7 +382,7 @@ class CalendarModel(Model):
 
     @property
     def _events_data(self) -> list[tuple[str, str, str, str, bool]]:
-        return list(map(tuple, self.data.get("events", [])))
+        return list(map(tuple, self.data.get("events", [])))  # type: ignore
 
     def add_event_to_json(
         self,
@@ -497,7 +498,7 @@ class CalendarController(ControllerWithEmbed):
     @staticmethod
     def _convert_input_to_datetime(date: str, time: str | None) -> dt.datetime:
         """Converts the input to a :class:`datetime.datetime` object."""
-        if time is None:
+        if time is None or time == "":
             time = "00.00"
 
         date = date.replace(":", ".").replace("-", ".").replace("/", ".")
@@ -539,7 +540,7 @@ class CalendarController(ControllerWithEmbed):
         is_all_day = time is None
         self.model.add_event_to_json(text, datetime, prefix, location, is_all_day)
 
-    def remove_event(self, index: int) -> Event:
+    def remove_event_at_index(self, index: int) -> Event:
         """Removes event from the `settings.json` file.
 
         Parameters
@@ -602,6 +603,124 @@ class CalendarController(ControllerWithEmbed):
         for i, event in enumerate(events):
             result.append(f"{i+1}. {event.full_name}")
         return "\n".join(result)
+
+
+class EventModal(Modal):
+    """A modal to add or edit an event.
+
+    Parameters
+    ----------
+    title: :class:`str`
+        The title of the modal.
+    controller: :class:`.CalendarController`
+        The calendar controller.
+    event: :class:`.Event` | `None`
+        The event to edit. If `None`, a new event will be added.
+
+    Attributes
+    ----------
+    description: :class:`TextInput`
+        The description of the event.
+    date: :class:`TextInput`
+        The date of the event.
+    time: :class:`TextInput`
+        The time of the event.
+    prefix: :class:`TextInput`
+        The prefix of the event.
+    location: :class:`TextInput`
+        The location of the event.
+    """
+
+    __slots__ = (
+        "description",
+        "date",
+        "time",
+        "prefix",
+        "location",
+        "_event",
+        "_controller",
+    )
+
+    description: TextInput
+    date: TextInput
+    time: TextInput
+    prefix: TextInput
+    location: TextInput
+
+    def __init__(
+        self, title: str, controller: CalendarController, event: Event | None = None
+    ):
+        super().__init__(title=title, timeout=None)
+        self._controller = controller
+        self._event = event
+
+        self.description = TextInput(
+            label="Description:",
+            placeholder="The description of the event",
+            default_value=event.description if event else "",
+            max_length=100,
+            required=True,
+        )
+        self.add_item(self.description)
+
+        self.date = TextInput(
+            label="Date:",
+            placeholder="The date in the format `dd.mm.yyyy`",
+            default_value=event.date.strftime("%d.%m.%Y") if event else "",
+            max_length=10,
+            required=True,
+        )
+        self.add_item(self.date)
+
+        self.time = TextInput(
+            label="Time:",
+            placeholder="The time (`hh.mm`), not specified = all day event",
+            default_value=event.date.strftime("%H.%M") if event else "",
+            max_length=5,
+            required=False,
+        )
+        self.add_item(self.time)
+
+        self.prefix = TextInput(
+            label="Prefix:",
+            placeholder="The prefix of the event",
+            default_value=event.prefix if event else "",
+            max_length=10,
+            required=False,
+        )
+        self.add_item(self.prefix)
+
+        self.location = TextInput(
+            label="Location:",
+            placeholder="The location of the event",
+            default_value=event.location if event else "",
+            max_length=20,
+            required=False,
+        )
+        self.add_item(self.location)
+
+    @InteractionUtils.with_info(catch_exceptions=[ValueError, UpdateEmbedError])
+    async def callback(self, interaction: Interaction) -> None:
+        """The callback for the modal.
+
+        Parameters
+        ----------
+        interaction: :class:`Interaction`
+            The interaction that triggered the modal.
+        """
+        await interaction.response.defer()
+
+        description = self.description.value or ""
+        date = self.date.value or ""
+        time = self.time.value
+        prefix = self.prefix.value or ""
+        location = self.location.value or ""
+
+        if self._event is not None:
+            self._controller.model.remove_event_from_json(self._event)
+
+        self._controller.add_event(description, date, time, prefix, location)
+        await self._controller.update_embed()
 
 
 def setup(bot: SGGWBot):
