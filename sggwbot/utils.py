@@ -85,7 +85,7 @@ class InteractionUtils(ABC):
                 user: Member = interaction.user  # type: ignore
 
                 user_info = f"{user.display_name} "
-                user_info += MemberUtils.convert_to_string(user)
+                user_info += f"({MemberUtils.convert_to_string(user)})"
 
                 kwargs_info = " ".join(
                     f"{k}:{v}" for k, v in kwargs.items() if v is not None
