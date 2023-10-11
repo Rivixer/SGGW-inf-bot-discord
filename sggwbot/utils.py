@@ -21,6 +21,7 @@ from typing import (
     ParamSpec,
 )
 
+import nextcord
 from nextcord.channel import TextChannel
 from nextcord.interactions import Interaction
 from nextcord.threads import Thread
@@ -202,8 +203,11 @@ class InteractionUtils(ABC):
                     if not interaction.response.is_done():
                         await interaction.response.send_message(err_msg, ephemeral=True)
                     else:
-                        msg = await interaction.original_message()
-                        await msg.edit(content=err_msg)
+                        try:
+                            msg = await interaction.original_message()
+                            await msg.edit(content=err_msg)
+                        except nextcord.errors.NotFound:
+                            await interaction.send(err_msg, ephemeral=True)
 
                     comm_name = InteractionUtils._command_name(interaction)
                     if exc_data.with_traceback_in_log:
