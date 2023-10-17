@@ -269,8 +269,8 @@ class RegistrationCog(commands.Cog):
         member_id: :class:`str`
             The member's ID.
         """
-        model = EditMemberInfoModal(self._model, member_id)
-        await interaction.response.send_modal(model)
+        modal = EditMemberInfoModal(self._model, member_id)
+        await interaction.response.send_modal(modal)
 
 
 class EditMemberInfoModal(Modal):
