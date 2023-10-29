@@ -712,7 +712,7 @@ class EventModal(Modal):
 
         description = self.description.value or ""
         date = self.date.value or ""
-        time = self.time.value
+        time = self.time.value or None
         prefix = self.prefix.value or ""
         location = self.location.value or ""
 
