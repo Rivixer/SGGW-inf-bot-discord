@@ -140,20 +140,20 @@ def test_convert_input_to_datetime(ctrl: CalendarController) -> None:
         ctrl._convert_input_to_datetime("29-02-2023", "12-34")
 
 
-def test_deprecated_events_and_remove_them(
+def test_expired_events_and_remove_them(
     ctrl: CalendarController, model: CalendarModel, datetime: dt.datetime
 ) -> None:
     past_datetime = datetime - dt.timedelta(minutes=10)
     future_datetime = datetime + dt.timedelta(minutes=10)
     event1 = model.add_event_to_json("test1", past_datetime, "", "", False)
-    assert event1.is_deprecated() is True
+    assert event1.is_expired() is True
     event2 = model.add_event_to_json("test2", future_datetime, "", "", False)
-    assert event2.is_deprecated() is False
+    assert event2.is_expired() is False
     event3 = model.add_event_to_json("test3", past_datetime, "", "", False)
-    assert event3.is_deprecated() is True
+    assert event3.is_expired() is True
     event4 = model.add_event_to_json("test4", past_datetime, "", "", True)
-    assert event4.is_deprecated() is False
-    removed = ctrl.remove_deprecated_events()
+    assert event4.is_expired() is False
+    removed = ctrl.remove_expired_events()
     assert removed == [event1, event3]
     assert model.calendar_data == [event4, event2]
 
