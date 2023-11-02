@@ -675,10 +675,15 @@ class EventModal(Modal):
         self.time = TextInput(
             label="Time:",
             placeholder="The time (`hh.mm`), not specified = all day event",
-            default_value=event.date.strftime("%H.%M") if event else "",
             max_length=5,
             required=False,
         )
+        
+        if event is None or event.is_all_day:
+            self.time.default_value = None
+        else:
+            self.time.default_value = event.date.strftime("%H.%M")
+
         self.add_item(self.time)
 
         self.prefix = TextInput(
