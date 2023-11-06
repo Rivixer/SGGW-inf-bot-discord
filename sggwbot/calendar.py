@@ -22,7 +22,7 @@ from nextcord.message import Attachment
 from nextcord.ui import Modal, TextInput
 
 from sggwbot.console import Console, FontColour
-from sggwbot.errors import UpdateEmbedError
+from sggwbot.errors import ExceptionData, UpdateEmbedError
 from sggwbot.models import ControllerWithEmbed, EmbedModel, Model
 from sggwbot.utils import InteractionUtils, wait_until_midnight
 
@@ -185,7 +185,11 @@ class CalendarCog(commands.Cog):
         catch_exceptions=[
             UpdateEmbedError,
             ValueError,
-            IndexError,
+            ExceptionData(
+                IndexError,
+                with_traceback_in_response=False,
+                with_traceback_in_log=False,
+            ),
         ],
     )
     @InteractionUtils.with_log()
@@ -228,7 +232,15 @@ class CalendarCog(commands.Cog):
     )
     @InteractionUtils.with_info(
         before="Removing event with index **{index}**...",
-        catch_exceptions=[IndexError, DiscordException, UpdateEmbedError],
+        catch_exceptions=[
+            DiscordException,
+            UpdateEmbedError,
+            ExceptionData(
+                IndexError,
+                with_traceback_in_response=False,
+                with_traceback_in_log=False,
+            ),
+        ],
     )
     @InteractionUtils.with_log()
     async def _remove(self, interaction: Interaction, index: int) -> None:
@@ -254,7 +266,7 @@ class CalendarCog(commands.Cog):
         # instead of in the `with_info` decorator,
         # because we don't have access to the event description there.
         msg = await interaction.original_message()
-        await msg.edit(f"The event **{event}** has been removed.")
+        await msg.edit(f"The event **{event.full_info}** has been removed.")
 
     @_calendar.subcommand(
         name="remove_expired_events",
@@ -358,8 +370,10 @@ class Event:
 
     @property
     def full_name(self) -> str:
-        """The full name of the event.
-        It includes the time if the event is not an all-day event.
+        """The full name of the event in format:
+
+        `[prefix if exists] **description**
+        [location if exists] (time if not an all-day event)`
         """
 
         result = f"**{self.description}**"
@@ -377,6 +391,17 @@ class Event:
                 result += f' ({self.date.strftime("%-H:%M")})'  # pragma: no cover
 
         return result
+
+    @property
+    def full_info(self) -> str:
+        """The full information of the event in format:
+
+        `(date) [prefix if exists] **description**
+        [location if exists] (time if not an all-day event)
+
+        Similar to :attr:`.Event.full_name` but with the date at the beginning.
+        """
+        return f"({self.date.date().strftime('%d.%m.%Y')}) {self.full_name}"
 
     @property
     def weekday(self) -> str:
@@ -627,7 +652,7 @@ class CalendarController(ControllerWithEmbed):
                 removed_events.append(event)
 
                 Console.specific(
-                    f"Event {event.full_name} has been removed due to expiration.",
+                    f"Event {event.full_info} has been removed due to expiration.",
                     "Calendar",
                     FontColour.GREEN,
                     bold_type=True,
@@ -643,7 +668,7 @@ class CalendarController(ControllerWithEmbed):
         result = []
         events = self.model.calendar_data
         for i, event in enumerate(events):
-            result.append(f"{i+1}. {event.full_name}")
+            result.append(f"{i+1}. {event.full_info}")
         return "\n".join(result)
 
 
