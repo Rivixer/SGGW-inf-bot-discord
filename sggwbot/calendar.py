@@ -337,11 +337,11 @@ class CalendarCog(commands.Cog):
 class Event:
     """Represents an event in the calendar.
 
-    If event is an all-day event, time in :attr:`date` will be '00:00'.
+    If event is an all-day event, :attr:`time` will be '00:00'.
 
     Attributes
     ----------
-    descrption: :class:`str`
+    description: :class:`str`
         The event description.
     date: :class:`datetime.date`
         The date when the event is to take place.
