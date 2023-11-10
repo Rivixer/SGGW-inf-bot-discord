@@ -33,6 +33,7 @@ from nextcord.enums import TextInputStyle
 from nextcord.errors import DiscordException
 from nextcord.ext import commands
 from nextcord.interactions import Interaction
+from nextcord.member import Member
 from nextcord.ui import Modal, TextInput
 
 from sggwbot.console import Console, FontColour
@@ -42,7 +43,6 @@ from sggwbot.utils import InteractionUtils, MemberUtils
 
 if TYPE_CHECKING:
     from nextcord.guild import Guild
-    from nextcord.member import Member
     from nextcord.message import Message
     from nextcord.role import Role
     from sggw_bot import SGGWBot
@@ -60,7 +60,7 @@ class RegistrationCog(commands.Cog):
     _model: RegistrationModel
 
     def __init__(self, bot: SGGWBot) -> None:
-        """Initialize the cog."""
+        """Initializes the :class:`.RegistractionCog` class."""
         self._bot = bot
         self._model = RegistrationModel(bot)
 
@@ -97,7 +97,7 @@ class RegistrationCog(commands.Cog):
 
     @nextcord.slash_command(
         name="register",
-        description="Komenda do zarejestrowania się na tym serwerze.",
+        description="Komenda do zarejestrowania się (dla studentów SGGW).",
         dm_permission=False,
     )
     @InteractionUtils.with_info(
@@ -210,6 +210,28 @@ class RegistrationCog(commands.Cog):
                 send_error_to_member(),
                 send_error_to_bot_channel(),
             )
+
+    @nextcord.slash_command(
+        name="register_guest",
+        description="Komenda do wysłania prośby o rejestrację (jeśli nie jesteś studentem SGGW).",
+        dm_permission=False,
+    )
+    @InteractionUtils.with_info(
+        catch_exceptions=[
+            ExceptionData(
+                DiscordException,
+                with_traceback_in_response=False,
+            ),
+            ExceptionData(
+                RegistrationError,
+                with_traceback_in_response=False,
+            ),
+        ]
+    )
+    @InteractionUtils.with_log(FontColour.GREEN)
+    async def _register_guest(self, interaction: Interaction) -> None:
+        modal = InfoModal(self._bot)
+        await interaction.response.send_modal(modal)
 
     @nextcord.slash_command(
         name="whois",
@@ -802,6 +824,75 @@ class MemberData:
             if v.get("StudentID") == self.index and int(k) != self.member.id:
                 ret.append(self.member.guild.get_member(int(k)))
         return ret
+
+
+class InfoModal(Modal):
+    """Represents a Modal for entering information about non-student member."""
+
+    __slots__ = ("_bot",)
+
+    _bot: SGGWBot
+
+    def __init__(self, bot: SGGWBot) -> None:
+        super().__init__(title="Rejestracja", timeout=None)
+        self._bot = bot
+
+        self.add_item(
+            TextInput(
+                label="Podaj informacje o sobie",
+                placeholder="Kim jesteś? Dlaczego potrzebujesz dostępu do serwera?",
+                style=TextInputStyle.paragraph,
+                required=True,
+            )
+        )
+
+    async def callback(self, interaction: Interaction) -> None:
+        """Callback for the modal."""
+
+        info_input = self.children[0]
+        assert isinstance(info_input, TextInput)
+
+        await interaction.response.send_message(
+            "**Dziękujemy za zgłoszenie!**\n\n"
+            "Wiadomość o treści:\n"
+            f"***{info_input.value}***\n"
+            "została przesłana do Administracji.\n\n"
+            "**Po weryfikacji zostaniesz zarejestrowany.**",
+            ephemeral=True,
+        )
+
+        member = interaction.user
+        assert isinstance(member, Member)
+        member_name = MemberUtils.convert_to_string(member)
+
+        Console.specific(
+            f"User {member_name} has subbited a registration request, "
+            f"providing the following reason: {info_input.value}.",
+            "Registration",
+            FontColour.CYAN,
+            bold_type=True,
+            bold_text=True,
+        )
+
+        embed = (
+            Embed(
+                title="New registration request!",
+                description=member.mention,
+                color=Colour.blurple(),
+            )
+            .add_field(name="Name", value=member_name)
+            .add_field(name="Reason", value=info_input.value, inline=False)
+            .add_field(name="ID", value=member.id, inline=False)
+            .set_thumbnail(
+                url=member.avatar.url if member.avatar else member.default_avatar.url
+            )
+        )
+
+        if member.display_name != member.name:
+            embed.insert_field_at(1, name="Nick", value=member.display_name)
+
+        bot_channel = self._bot.get_bot_channel()
+        await bot_channel.send(embed=embed)
 
 
 class CodeModal(Modal):
