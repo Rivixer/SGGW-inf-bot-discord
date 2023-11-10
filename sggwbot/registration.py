@@ -843,6 +843,7 @@ class InfoModal(Modal):
                 placeholder="Kim jesteś? Dlaczego potrzebujesz dostępu do serwera?",
                 style=TextInputStyle.paragraph,
                 required=True,
+                max_length=1024,
             )
         )
 
@@ -960,6 +961,7 @@ class CodeModal(Modal):
             "Powiadom nas o tym tutaj!",
             style=TextInputStyle.paragraph,
             required=True,
+            max_length=1024,
         )
 
     @property
@@ -974,6 +976,7 @@ class CodeModal(Modal):
             "Daj znać! Które konto ma być Twoim głównym?",
             style=TextInputStyle.paragraph,
             required=True,
+            max_length=1024,
         )
 
     async def callback(self, interaction: Interaction) -> None:
