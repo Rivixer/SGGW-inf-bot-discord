@@ -176,7 +176,7 @@ class CalendarCog(commands.Cog):
 
     @_calendar.subcommand(
         name="add",
-        description="Add a new event",
+        description="Add a new event.",
     )
     @InteractionUtils.with_info(catch_exceptions=[UpdateEmbedError, ValueError])
     @InteractionUtils.with_log()
@@ -186,7 +186,7 @@ class CalendarCog(commands.Cog):
 
     @_calendar.subcommand(
         name="edit",
-        description="Edit an event",
+        description="Edit an event.",
     )
     @InteractionUtils.with_info(
         catch_exceptions=[
