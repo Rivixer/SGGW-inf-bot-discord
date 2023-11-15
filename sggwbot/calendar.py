@@ -7,9 +7,12 @@ The events are stored in the data/settings/calendar_settings.json file.
 
 from __future__ import annotations
 
-import datetime as dt
+import datetime
+import functools
+import re
 import sys
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass
+from enum import Enum, auto
 from typing import TYPE_CHECKING, Generator
 
 import nextcord
@@ -18,13 +21,14 @@ from nextcord.channel import TextChannel
 from nextcord.errors import DiscordException
 from nextcord.ext import commands, tasks
 from nextcord.interactions import Interaction
+from nextcord.member import Member
 from nextcord.message import Attachment
 from nextcord.ui import Modal, TextInput
 
 from sggwbot.console import Console, FontColour
 from sggwbot.errors import ExceptionData, UpdateEmbedError
 from sggwbot.models import ControllerWithEmbed, EmbedModel, Model
-from sggwbot.utils import InteractionUtils, wait_until_midnight
+from sggwbot.utils import InteractionUtils, MemberUtils, wait_until_midnight
 
 if TYPE_CHECKING:
     from nextcord.embeds import Embed
@@ -37,17 +41,19 @@ class CalendarCog(commands.Cog):
     __slots__ = (
         "_bot",
         "_ctrl",
+        "_model",
     )
 
     _bot: SGGWBot
     _ctrl: CalendarController
+    _model: CalendarModel
 
     def __init__(self, bot: SGGWBot) -> None:
         """Initialize the cog."""
         self._bot = bot
-        model = CalendarModel()
-        embed_model = CalendarEmbedModel(model, bot)
-        self._ctrl = CalendarController(model, embed_model)
+        self._model = CalendarModel()
+        embed_model = CalendarEmbedModel(self._model, bot)
+        self._ctrl = CalendarController(self._model, embed_model)
         self._remove_expired_events_task.start()  # pylint: disable=no-member
 
     @nextcord.slash_command(
@@ -111,6 +117,7 @@ class CalendarCog(commands.Cog):
         UpdateEmbedError
             The embed could not be updated.
         """
+        await wait_until_midnight()
         await self._ctrl.update_embed()
 
     @_calendar.subcommand(
@@ -169,17 +176,17 @@ class CalendarCog(commands.Cog):
 
     @_calendar.subcommand(
         name="add",
-        description="Add a new event",
+        description="Add a new event.",
     )
     @InteractionUtils.with_info(catch_exceptions=[UpdateEmbedError, ValueError])
     @InteractionUtils.with_log()
     async def _add(self, interaction: Interaction) -> None:
-        modal = EventModal("Add a new event", self._ctrl)
+        modal = EventModal(EventModalType.ADD, self._ctrl)
         await interaction.response.send_modal(modal)
 
     @_calendar.subcommand(
         name="edit",
-        description="Edit an event",
+        description="Edit an event.",
     )
     @InteractionUtils.with_info(
         catch_exceptions=[
@@ -196,14 +203,13 @@ class CalendarCog(commands.Cog):
     async def _edit(
         self,
         interaction: Interaction,
-        _id: int = SlashOption(
-            name="id",
+        index: int = SlashOption(
             description="The index of the event to edit started from 1.",
         ),
     ) -> None:
-        event = self._ctrl.model.calendar_data[_id - 1]  # pylint: disable=no-member
+        event = self._model.get_event_at_index(index)
         modal = EventModal(
-            "Edit an event",
+            EventModalType.EDIT,
             self._ctrl,
             event=event,
         )
@@ -223,7 +229,7 @@ class CalendarCog(commands.Cog):
         interaction: :class:`Interaction`
             The interaction that triggered the command.
         """
-        events = self._ctrl.events_with_indexes
+        events = self._model.events_with_indexes
         await interaction.response.send_message(events, ephemeral=True)
 
     @_calendar.subcommand(
@@ -243,7 +249,13 @@ class CalendarCog(commands.Cog):
         ],
     )
     @InteractionUtils.with_log()
-    async def _remove(self, interaction: Interaction, index: int) -> None:
+    async def _remove(
+        self,
+        interaction: Interaction,
+        index: int = SlashOption(
+            description="The index of the event to remove started from 1.",
+        ),
+    ) -> None:
         """Removes an event from the calendar with the given index.
 
         Parameters
@@ -259,7 +271,8 @@ class CalendarCog(commands.Cog):
             The embed could not be updated.
         """
 
-        event = self._ctrl.remove_event_at_index(index)
+        event = self._model.get_event_at_index(index)
+        self._model.remove_event_from_json(event)
         await self._ctrl.update_embed()
 
         # We edit the original message here
@@ -295,7 +308,7 @@ class CalendarCog(commands.Cog):
             The embed could not be updated.
         """
 
-        removed_events = self._ctrl.remove_expired_events()
+        removed_events = self._model.remove_expired_events()
         if removed_events:
             await self._ctrl.update_embed()
 
@@ -314,59 +327,72 @@ class CalendarCog(commands.Cog):
         """
         await self._bot.wait_until_ready()
         while True:
-            removed_events = self._ctrl.remove_expired_events()
+            removed_events = self._model.remove_expired_events()
             if removed_events:
                 await self._ctrl.update_embed()
             await wait_until_midnight()
 
 
-# pylint: disable=no-member
-
-
-@dataclass(slots=True, order=True)
+@dataclass(slots=True)
 class Event:
     """Represents an event in the calendar.
 
-    If event is an all-day event, time in :attr:`date` will be '00:00'.
+    If event is an all-day event, :attr:`time` will be '00:00'.
 
     Attributes
     ----------
-    descrption: :class:`str`
+    description: :class:`str`
         The event description.
-    date: :class:`datetime.datetime`
-        The date and time when the event is to take place.
-        Used for compare.
+    date: :class:`datetime.date`
+        The date when the event is to take place.
+    time: :class:`datetime.date`
+        The time when the event is to take place.
+        If is None, the event is an all-day one.
     prefix: :class:`str`
         The prefix of the event.
     location: :class:`str`
         The location of the event.
-    is_all_day: :class:`bool`
-        Whether the event is an all-day event.
     """
 
-    description: str = field(compare=False)
-    date: dt.datetime
-    prefix: str = field(compare=False)
-    location: str = field(compare=False)
-    is_all_day: bool = field(compare=False)
+    description: str
+    date: datetime.date
+    time: datetime.time | None
+    prefix: str
+    location: str
 
-    def __post_init__(self) -> None:
-        # Checks that the time is 00:00 if the event is an all-day event.
-        time = self.date.strftime("%H:%M:%S")
-        if self.is_all_day and time != "00:00:00":
-            raise ValueError("Time must be 00:00.00:if is_all_day is True")
+    @property
+    def datetime(self) -> datetime.datetime:
+        """The datetime representation of the event.
 
+        If the event is an all-day one, the time is set to 00:00:00.
+        """
+        time = self.time if self.time is not None else datetime.time()
+        return datetime.datetime.combine(self.date, time)
+
+    @property
+    def is_all_day(self) -> bool:
+        """Whether the event is an all-day one.
+
+        Notes
+        -----
+        An event is an all-day one if its time is None.
+        """
+        return self.time is None
+
+    @property
     def is_expired(self) -> bool:
-        """Returns ``True`` if the event has already started.
+        """Whether the event has already started.
 
-        If the event is an all-day event,
+        Notes
+        -----
+        If the event is an all-day one,
         the start time is taken as 11:59 PM.
         """
 
-        now = dt.datetime.now()
-        if self.is_all_day:
-            return self.date.date() < now.date()
-        return self.date < now
+        now = datetime.datetime.now()
+        if self.time is None:
+            return self.date < now.date()
+        return self.datetime < now
 
     @property
     def full_name(self) -> str:
@@ -384,11 +410,11 @@ class Event:
         if self.location:
             result = f"{result} [{self.location}]"
 
-        if not self.is_all_day:
+        if self.time is not None:
             if sys.platform == "win32":
-                result += f' ({self.date.strftime("%#H:%M")})'  # pragma: no cover
+                result += f' ({self.time.strftime("%#H:%M")})'  # pragma: no cover
             else:
-                result += f' ({self.date.strftime("%-H:%M")})'  # pragma: no cover
+                result += f' ({self.time.strftime("%-H:%M")})'  # pragma: no cover
 
         return result
 
@@ -401,7 +427,7 @@ class Event:
 
         Similar to :attr:`.Event.full_name` but with the date at the beginning.
         """
-        return f"({self.date.date().strftime('%d.%m.%Y')}) {self.full_name}"
+        return f"({self.date.strftime('%d.%m.%Y')}) {self.full_name}"
 
     @property
     def weekday(self) -> str:
@@ -418,82 +444,166 @@ class Event:
         }
         return weekdays.get(self.date.weekday(), "")
 
+    @staticmethod
+    def compare_method(event1: Event, event2: Event) -> int:
+        """Compares events with their date and time."""
+        return int((event1.datetime - event2.datetime).total_seconds())
+
 
 class CalendarModel(Model):
     """Represents the calendar model."""
+
+    @dataclass
+    class _RawEventData:
+        description: str
+        date: str
+        time: str | None
+        prefix: str
+        location: str
+
+        def to_event(self) -> Event:
+            """Converts data to the :class:`.Event` class."""
+            dt = CalendarModel.convert_datetime_input(self.date, self.time)
+            return Event(
+                self.description,
+                dt.date(),
+                dt.time() if self.time else None,
+                self.prefix,
+                self.location,
+            )
+
+    @staticmethod
+    def _convert_event_to_raw_data(event: Event) -> _RawEventData:
+        return CalendarModel._RawEventData(
+            event.description,
+            event.date.strftime("%d.%m.%Y"),
+            event.time.strftime("%H.%M") if event.time else None,
+            event.prefix,
+            event.location,
+        )
+
+    @staticmethod
+    def convert_datetime_input(
+        date_input: str, time_input: str | None
+    ) -> datetime.datetime:
+        """Converts date and time inputs to the datetime format."""
+        date_input = re.sub("[-:/]", ".", date_input)
+        time_input = re.sub("[-:/]", ".", time_input) if time_input else "00.00"
+        _input = f"{date_input} {time_input}"
+        return datetime.datetime.strptime(_input, "%d.%m.%Y %H.%M")
 
     @property
     def calendar_data(self) -> list[Event]:
         """A list of events formatted to the :class:`.Event` class.
         Sorted by date."""
-
-        result = []
-
-        for event in self._events_data:
-            description, date_str, prefix, location, is_all_day = event
-            date = dt.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-
-            _event = Event(description, date, prefix, location, is_all_day)
-            result.append(_event)
-
-        result.sort()
+        result: list[Event] = []
+        for raw_event in self._events_data:
+            result.append(raw_event.to_event())
+        result.sort(key=functools.cmp_to_key(Event.compare_method))
         return result
 
     @property
-    def _events_data(self) -> list[tuple[str, str, str, str, bool]]:
-        return list(map(tuple, self.data.get("events", [])))  # type: ignore
+    def _events_data(self) -> list[_RawEventData]:
+        events: list[dict[str, str]] = self.data.get("events", [])
+        return (
+            list(map(lambda i: CalendarModel._RawEventData(*i.values()), events))
+            if events
+            else []
+        )
 
-    def add_event_to_json(
-        self,
-        description: str,
-        datetime: dt.datetime,
-        prefix: str,
-        location: str,
-        is_all_day: bool,
-    ) -> Event:
-        """Adds the event to the `settings.json` file.
+    def get_event_at_index(self, index: int) -> Event:
+        """Returns the event at the specified index.
 
         Parameters
         ----------
-        description: :class:`str`
-            The event description.
-        datetime: :class:`datetime.datetime`
-            The date and time when the event is to take place.
-        prefix: :class:`str`
-            The prefix of the event.
-        location: :class:`str`
-            The location of the event.
-        is_all_day: :class:`bool`
-            Whether the event is an all-day event.
+        index: :class:`int`
+            The index of the event to get.
 
         Returns
         -------
         :class:`.Event`
-            The event that was added.
+            The found event.
+
+        Raises
+        ------
+        IndexError
+            - If the index is out of bounds (less than 1 or greater than the number of events).
+            - If there are no events.
         """
-        datetime = datetime.replace(microsecond=0)
-        if is_all_day:
-            datetime = datetime.replace(hour=0, minute=0, second=0)
-        data = self._events_data
-        data.append((description, str(datetime), prefix, location, is_all_day))
-        self.update_settings("events", data, force=True)
-        return Event(description, datetime, prefix, location, is_all_day)
+
+        events = self.calendar_data
+        number_of_events = len(events)
+
+        if number_of_events == 0:
+            raise IndexError("There are no events")
+
+        if not (1 <= index <= number_of_events):
+            raise IndexError(f"Index must be between 1 and {number_of_events}")
+
+        return events[index - 1]
 
     def remove_event_from_json(self, event: Event) -> None:
-        """Removes the event from the `settings.json` file."""
-        data = self._events_data
-        data.remove(
-            (
-                event.description,
-                str(event.date),
-                event.prefix,
-                event.location,
-                event.is_all_day,
-            )
-        )
+        """Removes event from the `settings.json` file.
+
+        Parameters
+        ----------
+        event: :class:`.Event`
+            The event to remove.
+        """
+        data: list[dict[str, str]] = self.data.get("events", [])
+        data.remove(asdict(self._convert_event_to_raw_data(event)))
         self.update_settings("events", data)
 
-    def get_grouped_events(self) -> Generator[tuple[dt.date, list[Event]], None, None]:
+    def remove_expired_events(self) -> list[Event]:
+        """Removes all events that have already started.
+
+        Returns
+        -------
+        list[:class:`.Event`]
+            A list of removed events.
+        """
+
+        removed_events = []
+        for event in self.calendar_data:
+            if event.is_expired:
+                self.remove_event_from_json(event)
+                removed_events.append(event)
+
+                Console.specific(
+                    f"Event '{event.full_info}' has been removed due to expiration.",
+                    "Calendar",
+                    FontColour.GREEN,
+                    bold_type=True,
+                )
+
+        return removed_events
+
+    @property
+    def events_with_indexes(self) -> str:
+        """A string with all events and their indexes.
+        Indexes start from 1.
+        """
+        result = []
+        events = self.calendar_data
+        for i, event in enumerate(events):
+            result.append(f"{i+1}. {event.full_info}")
+        return "\n".join(result)
+
+    def add_event_to_json(self, event: Event) -> None:
+        """Adds the event to the `settings.json` file.
+
+        Parameters
+        ----------
+        event: :class:`.Event`
+            An event to be added.
+        """
+        data: list[dict[str, str]] = self.data.get("events", [])
+        data.append(asdict(self._convert_event_to_raw_data(event)))
+        self.update_settings("events", data, force=True)
+
+    def get_grouped_events(
+        self,
+    ) -> Generator[tuple[datetime.date, list[Event]], None, None]:
         """An iterator that reads all events from settings and sorts them.
 
         Yields
@@ -501,16 +611,19 @@ class CalendarModel(Model):
         tuple[:class:`datetime.date`, list[:class:`.Event`]]
             A tuple of events, grouped by date and sorted.
         """
-        calendar: dict[dt.date, list[Event]] = {}
+        calendar: dict[datetime.date, list[Event]] = {}
 
         for event in self.calendar_data:
             try:
-                calendar[event.date.date()].append(event)
+                calendar[event.date].append(event)
             except KeyError:
-                calendar[event.date.date()] = [event]
+                calendar[event.date] = [event]
 
         for date, event in calendar.items():
             yield (date, event)
+
+
+# pylint: disable=no-member
 
 
 class CalendarEmbedModel(EmbedModel):
@@ -555,30 +668,33 @@ class CalendarController(ControllerWithEmbed):
     model: CalendarModel
 
     @staticmethod
-    def _convert_input_to_datetime(date: str, time: str | None) -> dt.datetime:
-        """Converts the input to a :class:`datetime.datetime` object."""
-        if time is None or time == "":
-            time = "00.00"
-
-        date = date.replace(":", ".").replace("-", ".").replace("/", ".")
-        time = time.replace(":", ".").replace("-", ".").replace("/", ".")
-        return dt.datetime.strptime(f"{date} {time}", "%d.%m.%Y %H.%M")
-
-    def add_event(
-        self,
-        text: str,
+    def _convert_input_to_event(
+        description: str,
         date: str,
         time: str | None,
         prefix: str,
         location: str,
-    ) -> None:
+    ) -> Event:
+        dt = CalendarModel.convert_datetime_input(date, time)
+        return Event(
+            description, dt.date(), dt.time() if time else None, prefix, location
+        )
+
+    def add_event(  # pylint: disable=too-many-arguments
+        self,
+        description: str,
+        date: str,
+        time: str | None,
+        prefix: str,
+        location: str,
+    ) -> Event:
         """Adds event to the `settings.json` file.
 
         The date and time separator can be `.`, `:`, `-` or `/`.
 
         Parameters
         ----------
-        text: :class:`str`
+        description: :class:`str`
             The event description.
         date: :class:`str`
             The date in the format `dd.mm.yyyy`.
@@ -590,89 +706,29 @@ class CalendarController(ControllerWithEmbed):
         location: :class:`str`
             The location of the event.
 
+        Returns
+        -------
+        :class:`.Event`
+            An event that has been added.
+
         Raises
         ------
         ValueError
             The date or time was invalid.
         """
-        datetime = self._convert_input_to_datetime(date, time)
-        is_all_day = time is None
-        self.model.add_event_to_json(text, datetime, prefix, location, is_all_day)
-
-    def remove_event_at_index(self, index: int) -> Event:
-        """Removes event from the `settings.json` file.
-
-        Parameters
-        ----------
-        index: :class:`int`
-            The index of the event to remove.
-
-        Returns
-        -------
-        :class:`.Event`
-            The removed event.
-
-        Raises
-        ------
-        IndexError
-            The index was invalid.
-
-        Notes
-        -----
-        The index starts from 1.
-        """
-
-        number_of_events = len(self.model.data.get("events", []))
-        if number_of_events == 0:
-            raise IndexError("There are no events to remove")
-
-        try:
-            if index <= 0:
-                raise IndexError
-            event = self.model.calendar_data[index - 1]
-        except IndexError as e:
-            raise IndexError(f"Index must be between 1 and {number_of_events}") from e
-
-        self.model.remove_event_from_json(event)
+        event = self._convert_input_to_event(description, date, time, prefix, location)
+        self.model.add_event_to_json(event)
         return event
 
-    def remove_expired_events(self) -> list[Event]:
-        """Removes all events that have already started.
 
-        Returns
-        -------
-        list[:class:`.Event`]
-            A list of removed events.
-        """
+class EventModalType(Enum):
+    """Represents type of event modal."""
 
-        removed_events = []
-        for event in self.model.calendar_data:
-            if event.is_expired():
-                self.model.remove_event_from_json(event)
-                removed_events.append(event)
-
-                Console.specific(
-                    f"Event {event.full_info} has been removed due to expiration.",
-                    "Calendar",
-                    FontColour.GREEN,
-                    bold_type=True,
-                )
-
-        return removed_events
-
-    @property
-    def events_with_indexes(self) -> str:
-        """A string with all events and their indexes.
-        Indexes start from 1.
-        """
-        result = []
-        events = self.model.calendar_data
-        for i, event in enumerate(events):
-            result.append(f"{i+1}. {event.full_info}")
-        return "\n".join(result)
+    ADD = auto()
+    EDIT = auto()
 
 
-class EventModal(Modal):
+class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
     """A modal to add or edit an event.
 
     Parameters
@@ -704,8 +760,9 @@ class EventModal(Modal):
         "time",
         "prefix",
         "location",
-        "_event",
+        "modal_type",
         "_controller",
+        "_event",
     )
 
     description: TextInput
@@ -713,11 +770,28 @@ class EventModal(Modal):
     time: TextInput
     prefix: TextInput
     location: TextInput
+    modal_type: EventModalType
+    _controller: CalendarController
+    _event: Event | None
 
     def __init__(
-        self, title: str, controller: CalendarController, event: Event | None = None
+        self,
+        modal_type: EventModalType,
+        /,
+        controller: CalendarController,
+        event: Event | None = None,
     ):
+        match modal_type:
+            case EventModalType.ADD:
+                title = "Add a new event"
+            case EventModalType.EDIT:
+                title = "Edit the event"
+            case _:
+                raise NotImplementedError
+
         super().__init__(title=title, timeout=None)
+
+        self.modal_type = modal_type
         self._controller = controller
         self._event = event
 
@@ -746,10 +820,10 @@ class EventModal(Modal):
             required=False,
         )
 
-        if event is None or event.is_all_day:
+        if event is None or event.time is None:
             self.time.default_value = None
         else:
-            self.time.default_value = event.date.strftime("%H.%M")
+            self.time.default_value = event.time.strftime("%H.%M")
 
         self.add_item(self.time)
 
@@ -780,6 +854,9 @@ class EventModal(Modal):
         interaction: :class:`Interaction`
             The interaction that triggered the modal.
         """
+        member = interaction.user
+        assert isinstance(member, Member)
+
         await interaction.response.defer()
 
         description = self.description.value or ""
@@ -788,10 +865,26 @@ class EventModal(Modal):
         prefix = self.prefix.value or ""
         location = self.location.value or ""
 
+        old_event: Event | None = self._event
         if self._event is not None:
             self._controller.model.remove_event_from_json(self._event)
 
-        self._controller.add_event(description, date, time, prefix, location)
+        self._event = self._controller.add_event(
+            description, date, time, prefix, location
+        )
+
+        msg = f"{MemberUtils.convert_to_string(member)} "
+        match self.modal_type:
+            case EventModalType.ADD:
+                msg += "added a new event "
+            case EventModalType.EDIT:
+                assert old_event is not None
+                msg += f"edited the event '{old_event.full_info}' -> "
+            case _:
+                raise NotImplementedError
+        msg += f"'{self._event.full_info}'"
+        Console.specific(msg, "Calendar", FontColour.GREEN, bold_type=True)
+
         await self._controller.update_embed()
 
 
