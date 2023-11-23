@@ -8,12 +8,8 @@ from typing import Any, Generator
 import pytest
 from pytest import MonkeyPatch
 
-from sggwbot.calendar import (
-    CalendarController,
-    CalendarEmbedModel,
-    CalendarModel,
-    Event,
-)
+from sggwbot.calendar import (CalendarController, CalendarEmbedModel,
+                              CalendarModel, Event)
 
 from .mocks import *
 
@@ -140,20 +136,20 @@ def test_convert_input_to_datetime(ctrl: CalendarController) -> None:
         ctrl._convert_input_to_datetime("29-02-2023", "12-34")
 
 
-def test_deprecated_events_and_remove_them(
+def test_expired_events_and_remove_them(
     ctrl: CalendarController, model: CalendarModel, datetime: dt.datetime
 ) -> None:
     past_datetime = datetime - dt.timedelta(minutes=10)
     future_datetime = datetime + dt.timedelta(minutes=10)
     event1 = model.add_event_to_json("test1", past_datetime, "", "", False)
-    assert event1.is_deprecated() is True
+    assert event1.is_expired() is True
     event2 = model.add_event_to_json("test2", future_datetime, "", "", False)
-    assert event2.is_deprecated() is False
+    assert event2.is_expired() is False
     event3 = model.add_event_to_json("test3", past_datetime, "", "", False)
-    assert event3.is_deprecated() is True
+    assert event3.is_expired() is True
     event4 = model.add_event_to_json("test4", past_datetime, "", "", True)
-    assert event4.is_deprecated() is False
-    removed = ctrl.remove_deprecated_events()
+    assert event4.is_expired() is False
+    removed = ctrl.remove_expired_events()
     assert removed == [event1, event3]
     assert model.calendar_data == [event4, event2]
 
@@ -193,6 +189,41 @@ def test_event_full_name_with_prefix_and_location_and_time() -> None:
     assert event.full_name == "[prefix] **test** [location] (14:05)"
 
 
+def test_event_full_info_with_time() -> None:
+    event = Event("test", dt.datetime(2023, 1, 23, 9, 34), "", "", False)
+    assert event.full_info == "(23.01.2023) **test** (9:34)"
+
+
+def test_event_full_info_only_name() -> None:
+    event = Event("test", dt.datetime(2023, 1, 23, 0, 0), "", "", True)
+    assert event.full_info == "(23.01.2023) **test**"
+
+
+def test_event_full_info_with_time_and_not_all_day() -> None:
+    event = Event("test", dt.datetime(2023, 1, 23, 0, 0), "", "", False)
+    assert event.full_info == "(23.01.2023) **test** (0:00)"
+
+
+def test_event_full_info_with_prefix() -> None:
+    event = Event("test", dt.datetime(2023, 1, 23, 0, 0), "prefix", "", True)
+    assert event.full_info == "(23.01.2023) [prefix] **test**"
+
+
+def test_event_full_info_with_location() -> None:
+    event = Event("test", dt.datetime(2023, 1, 23, 0, 0), "", "location", True)
+    assert event.full_info == "(23.01.2023) **test** [location]"
+
+
+def test_event_full_info_with_prefix_and_location() -> None:
+    event = Event("test", dt.datetime(2023, 1, 23, 0, 0), "prefix", "location", True)
+    assert event.full_info == "(23.01.2023) [prefix] **test** [location]"
+
+
+def test_event_full_info_with_prefix_and_location_and_time() -> None:
+    event = Event("test", dt.datetime(2023, 1, 23, 14, 5), "prefix", "location", False)
+    assert event.full_info == "(23.01.2023) [prefix] **test** [location] (14:05)"
+
+
 def test_event_wrong_date(datetime: dt.datetime) -> None:
     with pytest.raises(ValueError):
         Event("test", datetime.replace(hour=1), "", "", True)
@@ -209,7 +240,7 @@ def test_events_with_indexes(
 ) -> None:
     event1 = model.add_event_to_json("test1", datetime, "prefix", "", True)
     event2 = model.add_event_to_json("test2", datetime, "", "location", True)
-    assert ctrl.events_with_indexes == f"1. {event1.full_name}\n2. {event2.full_name}"
+    assert ctrl.events_with_indexes == f"1. {event1.full_info}\n2. {event2.full_info}"
 
 
 def test_remove_event_with_index(

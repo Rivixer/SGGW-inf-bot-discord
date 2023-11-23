@@ -408,5 +408,7 @@ async def wait_until_midnight() -> Literal[True]:
     )
 
     time_until_midnight = midnight - today
-    await asyncio.sleep(time_until_midnight.seconds)
+    await asyncio.sleep(
+        time_until_midnight.seconds + time_until_midnight.microseconds / 1000
+    )
     return True

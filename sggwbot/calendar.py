@@ -21,7 +21,8 @@ from nextcord.interactions import Interaction
 from nextcord.message import Attachment
 from nextcord.ui import Modal, TextInput
 
-from sggwbot.errors import UpdateEmbedError
+from sggwbot.console import Console, FontColour
+from sggwbot.errors import ExceptionData, UpdateEmbedError
 from sggwbot.models import ControllerWithEmbed, EmbedModel, Model
 from sggwbot.utils import InteractionUtils, wait_until_midnight
 
@@ -47,7 +48,7 @@ class CalendarCog(commands.Cog):
         model = CalendarModel()
         embed_model = CalendarEmbedModel(model, bot)
         self._ctrl = CalendarController(model, embed_model)
-        self._remove_deprecated_events.start()  # pylint: disable=no-member
+        self._remove_expired_events_task.start()  # pylint: disable=no-member
 
     @nextcord.slash_command(
         name="calendar",
@@ -184,18 +185,23 @@ class CalendarCog(commands.Cog):
         catch_exceptions=[
             UpdateEmbedError,
             ValueError,
-            IndexError,
+            ExceptionData(
+                IndexError,
+                with_traceback_in_response=False,
+                with_traceback_in_log=False,
+            ),
         ],
     )
     @InteractionUtils.with_log()
     async def _edit(
         self,
         interaction: Interaction,
-        id: int = SlashOption(
+        _id: int = SlashOption(
+            name="id",
             description="The index of the event to edit started from 1.",
         ),
     ) -> None:
-        event = self._ctrl.model.calendar_data[id - 1]
+        event = self._ctrl.model.calendar_data[_id - 1]  # pylint: disable=no-member
         modal = EventModal(
             "Edit an event",
             self._ctrl,
@@ -226,7 +232,15 @@ class CalendarCog(commands.Cog):
     )
     @InteractionUtils.with_info(
         before="Removing event with index **{index}**...",
-        catch_exceptions=[IndexError, DiscordException, UpdateEmbedError],
+        catch_exceptions=[
+            DiscordException,
+            UpdateEmbedError,
+            ExceptionData(
+                IndexError,
+                with_traceback_in_response=False,
+                with_traceback_in_log=False,
+            ),
+        ],
     )
     @InteractionUtils.with_log()
     async def _remove(self, interaction: Interaction, index: int) -> None:
@@ -252,13 +266,44 @@ class CalendarCog(commands.Cog):
         # instead of in the `with_info` decorator,
         # because we don't have access to the event description there.
         msg = await interaction.original_message()
-        await msg.edit(f"The event **{event}** has been removed.")
+        await msg.edit(f"The event **{event.full_info}** has been removed.")
+
+    @_calendar.subcommand(
+        name="remove_expired_events",
+        description="Remove expired events.",
+    )
+    @InteractionUtils.with_info(
+        before="Removing expired events...",
+        after="Expired events have been removed.",
+        catch_exceptions=[DiscordException, UpdateEmbedError],
+    )
+    @InteractionUtils.with_log()
+    async def _remove_expired_events(
+        self,
+        interaction: Interaction,  # pylint: disable=unused-argument
+    ) -> None:
+        """Removes expired events from the calendar.
+
+        Parameters
+        ----------
+        interaction: :class:`Interaction`
+            The interaction that triggered the command.
+
+        Raises
+        ------
+        UpdateEmbedError
+            The embed could not be updated.
+        """
+
+        removed_events = self._ctrl.remove_expired_events()
+        if removed_events:
+            await self._ctrl.update_embed()
 
     @tasks.loop(count=1)
-    async def _remove_deprecated_events(self) -> None:
-        """Removes deprecated events from the calendar.
+    async def _remove_expired_events_task(self) -> None:
+        """Removes expired events from the calendar.
 
-        Deprecated events are events that have already taken place.
+        Expired events are events that have already taken place.
 
         The events are removed at midnight.
 
@@ -268,10 +313,11 @@ class CalendarCog(commands.Cog):
             The embed could not be updated.
         """
         await self._bot.wait_until_ready()
-        while await wait_until_midnight():
-            removed_events = self._ctrl.remove_deprecated_events()
+        while True:
+            removed_events = self._ctrl.remove_expired_events()
             if removed_events:
                 await self._ctrl.update_embed()
+            await wait_until_midnight()
 
 
 # pylint: disable=no-member
@@ -310,7 +356,7 @@ class Event:
         if self.is_all_day and time != "00:00:00":
             raise ValueError("Time must be 00:00.00:if is_all_day is True")
 
-    def is_deprecated(self) -> bool:
+    def is_expired(self) -> bool:
         """Returns ``True`` if the event has already started.
 
         If the event is an all-day event,
@@ -324,8 +370,10 @@ class Event:
 
     @property
     def full_name(self) -> str:
-        """The full name of the event.
-        It includes the time if the event is not an all-day event.
+        """The full name of the event in format:
+
+        `[prefix if exists] **description**
+        [location if exists] (time if not an all-day event)`
         """
 
         result = f"**{self.description}**"
@@ -343,6 +391,17 @@ class Event:
                 result += f' ({self.date.strftime("%-H:%M")})'  # pragma: no cover
 
         return result
+
+    @property
+    def full_info(self) -> str:
+        """The full information of the event in format:
+
+        `(date) [prefix if exists] **description**
+        [location if exists] (time if not an all-day event)
+
+        Similar to :attr:`.Event.full_name` but with the date at the beginning.
+        """
+        return f"({self.date.date().strftime('%d.%m.%Y')}) {self.full_name}"
 
     @property
     def weekday(self) -> str:
@@ -577,7 +636,7 @@ class CalendarController(ControllerWithEmbed):
         self.model.remove_event_from_json(event)
         return event
 
-    def remove_deprecated_events(self) -> list[Event]:
+    def remove_expired_events(self) -> list[Event]:
         """Removes all events that have already started.
 
         Returns
@@ -588,9 +647,17 @@ class CalendarController(ControllerWithEmbed):
 
         removed_events = []
         for event in self.model.calendar_data:
-            if event.is_deprecated():
+            if event.is_expired():
                 self.model.remove_event_from_json(event)
                 removed_events.append(event)
+
+                Console.specific(
+                    f"Event {event.full_info} has been removed due to expiration.",
+                    "Calendar",
+                    FontColour.GREEN,
+                    bold_type=True,
+                )
+
         return removed_events
 
     @property
@@ -601,7 +668,7 @@ class CalendarController(ControllerWithEmbed):
         result = []
         events = self.model.calendar_data
         for i, event in enumerate(events):
-            result.append(f"{i+1}. {event.full_name}")
+            result.append(f"{i+1}. {event.full_info}")
         return "\n".join(result)
 
 
@@ -675,10 +742,15 @@ class EventModal(Modal):
         self.time = TextInput(
             label="Time:",
             placeholder="The time (`hh.mm`), not specified = all day event",
-            default_value=event.date.strftime("%H.%M") if event else "",
             max_length=5,
             required=False,
         )
+
+        if event is None or event.is_all_day:
+            self.time.default_value = None
+        else:
+            self.time.default_value = event.date.strftime("%H.%M")
+
         self.add_item(self.time)
 
         self.prefix = TextInput(
