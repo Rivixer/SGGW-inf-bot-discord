@@ -11,14 +11,8 @@ import pytest
 from nextcord.embeds import Embed
 from pytest import MonkeyPatch
 
-from sggwbot.registration import (
-    CodeController,
-    CodeModel,
-    MailLog,
-    MemberData,
-    MemberInfo,
-    RegistrationModel,
-)
+from sggwbot.registration import (CodeController, CodeModel, MailLog,
+                                  MemberData, MemberInfo, RegistrationModel)
 
 from .mocks import *
 
@@ -217,22 +211,24 @@ def test_code_model_check_if_blocked() -> None:
 
 
 def test_code_model_add_mail_sent_time() -> None:
-    model = CodeModel("xxxxxx", dt.datetime.now(), [])
+    dt_now = dt.datetime.now().replace(microsecond=0)
+    model = CodeModel("xxxxxx", dt_now, [])
     model.add_mail_sent_time("123456")
-    assert model.mail_logs == [MailLog("123456", [dt.datetime.now()])]
+    assert model.mail_logs == [MailLog("123456", [dt_now])]
 
     model.add_mail_sent_time("123456")
     assert model.mail_logs == [
-        MailLog("123456", [dt.datetime.now(), dt.datetime.now()])
+        MailLog("123456", [dt_now, dt_now])
     ]
 
 
 def test_code_model_to_dict() -> None:
-    log1 = MailLog("123456", [dt.datetime.now()])
-    model = CodeModel("xxxxxx", dt.datetime.now(), [log1])
+    dt_now = dt.datetime.now().replace(microsecond=0)
+    log1 = MailLog("123456", [dt_now])
+    model = CodeModel("xxxxxx", dt_now, [log1])
     assert model.to_dict() == {
         "code": "xxxxxx",
-        "generation_time": dt.datetime.now().timestamp(),
+        "generation_time": dt_now.timestamp(),
         "mail_logs": [log1.to_dict()],
     }
 

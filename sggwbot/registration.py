@@ -654,11 +654,12 @@ class CodeModel:
 
     def add_mail_sent_time(self, index: str) -> None:
         """Adds the time to logs when the email was sent."""
+        dt_now = dt.datetime.now().replace(microsecond=0)
         for log in self.mail_logs:
             if log.provided_index == index:
-                log.mails_sent_time.append(dt.datetime.now())
+                log.mails_sent_time.append(dt_now)
                 return
-        self.mail_logs.append(MailLog(index, [dt.datetime.now()]))
+        self.mail_logs.append(MailLog(index, [dt_now]))
 
     def to_dict(self) -> dict[str, Any]:
         """Returns a dictionary representation of the object."""
