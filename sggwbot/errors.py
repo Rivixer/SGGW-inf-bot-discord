@@ -46,7 +46,7 @@ class ExceptionData:
 
         @nextcord.slash_command(name="divide", description="Divide two numbers.")
         @InteractionUtils.with_info(catch_errors=[
-            ErrorData(ZeroDivisionError, with_traceback_in_reply=False)
+            ExceptionData(ZeroDivisionError, with_traceback_in_reply=False)
         ])
         async def _divide(self, interaction, a, b) -> None:
             await interaction.response.send_message(f"{a} / {b} = {a / b}")
