@@ -49,7 +49,7 @@ class CalendarCog(commands.Cog):
     _model: CalendarModel
 
     def __init__(self, bot: SGGWBot) -> None:
-        """Initialize the cog."""
+        """Initializes the Calendar cog."""
         self._bot = bot
         self._model = CalendarModel()
         embed_model = CalendarEmbedModel(self._model, bot)
