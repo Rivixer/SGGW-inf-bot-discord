@@ -840,7 +840,7 @@ class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
             label="Location:",
             placeholder="The location of the event",
             default_value=event.location if event else "",
-            max_length=20,
+            max_length=256,
             required=False,
         )
         self.add_item(self.location)
