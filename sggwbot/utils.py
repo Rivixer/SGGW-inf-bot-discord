@@ -20,8 +20,10 @@ from typing import (
     Callable,
     Concatenate,
     Generic,
+    Hashable,
     Literal,
     ParamSpec,
+    TypeAlias,
     TypeVar,
 )
 
@@ -507,6 +509,47 @@ class Matcher(Generic[_MatcherT]):
             )
             for item in self.items
         ]
+
+
+_KeyT = TypeVar("_KeyT", bound=Hashable)
+_RatioT = TypeVar("_RatioT", int, float)
+_CompareMethod: TypeAlias = Callable[[_RatioT, _RatioT], bool]
+
+
+class SmartDict(dict[_KeyT, _RatioT]):
+    """A dictionary-like structure with smart key replacement based on comparison method.
+
+    This class is used to store items with a key that is a hashable type.
+
+    Attributes
+    ----------
+    compare_method: :class:`_CompareMethod`
+        A method to compare the values.
+
+    Examples
+    --------
+    Create a `SmartDict` instance: ::
+
+        smart_dict = SmartDict[int, float](lambda x, y: x > y)
+
+    Set the value of the key if the compare method returns `True`: ::
+
+        smart_dict[1] = 2.0
+        smart_dict[1]  # 2.0
+        smart_dict[1] = 1.0
+        smart_dict[1]  # 2.0 (1.0 was not set because 1.0 < 2.0)
+        smart_dict[1] = 3.0
+        smart_dict[1]  # 3.0 (3.0 was set because 3.0 > 2.0)
+    """
+
+    compare_method: _CompareMethod
+
+    def __init__(self, compare_method: _CompareMethod) -> None:
+        self.compare_method = compare_method
+
+    def __setitem__(self, key: _KeyT, value: _RatioT) -> None:
+        if key not in self or self.compare_method(value, self[key]):
+            super().__setitem__(key, value)
 
 
 async def wait_until_midnight() -> Literal[True]:
