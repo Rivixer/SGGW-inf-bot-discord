@@ -10,6 +10,8 @@ import os
 import re
 import traceback
 from abc import ABC
+from dataclasses import KW_ONLY, dataclass
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
@@ -17,8 +19,10 @@ from typing import (
     Awaitable,
     Callable,
     Concatenate,
+    Generic,
     Literal,
     ParamSpec,
+    TypeVar,
 )
 
 import nextcord
@@ -33,9 +37,8 @@ if TYPE_CHECKING:
     from nextcord.member import Member
     from nextcord.user import User
 
-
-_P = ParamSpec("_P")
-_FUNC = Callable[Concatenate[Any, Interaction, _P], Awaitable[Any]]
+    _P = ParamSpec("_P")
+    _FUNC = Callable[Concatenate[Any, Interaction, _P], Awaitable[Any]]
 
 
 class InteractionUtils(ABC):
@@ -373,6 +376,137 @@ class ProjectUtils(ABC):  # pylint: disable=too-few-public-methods
         root_dir = Path(os.path.abspath(os.curdir))
         count(root_dir, result)
         return result[0]
+
+
+_MatcherT = TypeVar("_MatcherT")
+_MatcherResultT = TypeVar("_MatcherResultT")
+
+
+@dataclass(slots=True)
+class Matcher(Generic[_MatcherT]):
+    """A class for matching items to a given value.
+
+    All methods use `SequenceMatcher` to find the closest match to the given value.
+
+    Attributes
+    ----------
+    items: :class:`list`[:class:`_MatcherT`]
+        A list of items to find the closest match to the given value.
+    ignore_case: :class:`bool`
+        Whether to ignore the case of the items. Defaults to `False`.
+
+    Methods
+    -------
+    match_max(value: `str`, key: Callable[[`_MatcherT`], `str`]) -> `Matcher.Result`[`_MatcherT`]
+        Finds the closest match to the given value.
+    match_all(value: `str`, key: Callable[[`_MatcherT`], `str`]) -> list[`Finder.Result`[`_MatcherT`]]
+        Finds all matches to the given value.
+
+    Examples
+    --------
+    Arrange the items in the `Matcher` class: ::
+
+        @dataclass
+        class TestClass:
+            field: str
+
+        cls1 = TestClass("aaaa")
+        cls2 = TestClass("bbbb")
+        cls3 = TestClass("cccc")
+        matcher = Matcher[TestClass]([cls1, cls2, cls3])
+
+    Find the closest match to the given value: ::
+
+        result = matcher.match_max("cccb", key=lambda x: x.field)
+        result.item  # cls3
+        result.ratio # 0.75
+
+    Find all matches to the given value: ::
+
+        results = matcher.match_all("cccb", key=lambda x: x.field)
+        results[0] # (item=cls1, ratio=0.25)
+        results[1] # (item=cls2, ratio=0.8)
+        results[2] # (item=cls3, ratio=0.75)
+    """
+
+    items: list[_MatcherT]
+    _: KW_ONLY
+    ignore_case: bool = False
+
+    @dataclass(slots=True)
+    class Result(Generic[_MatcherResultT]):
+        """A class representing a result of the `Matcher` class.
+
+        Attributes
+        ----------
+        item: :class:`_MatcherResultT`
+            The item that was found.
+        ratio: :class:`float`
+            The ratio of the match.
+        """
+
+        item: _MatcherResultT
+        ratio: float
+
+    def match_max(
+        self,
+        value: str,
+        key: Callable[[_MatcherT], str] = str,
+    ) -> Matcher.Result[_MatcherT]:
+        """Finds the closest match to the given value.
+
+        This function uses `SequenceMatcher` to find
+        the closest match to the given value.
+
+        Parameters
+        ----------
+        value: :class:`_MatcherT`
+            The value to find.
+        key: Callable[[:class:`_MatcherT`], :class:`str`]
+            A function to convert the items to strings. Defaults to `str`.
+
+        Returns
+        -------
+        :class:`Finder.Result`[:class:`_MatcherT`]
+            The closest match to the given value.
+        """
+        matches = self.match_all(value, key)
+        return max(matches, key=lambda match: match.ratio)
+
+    def match_all(
+        self,
+        value: str,
+        key: Callable[[_MatcherT], str] = str,
+    ) -> list[Matcher.Result[_MatcherT]]:
+        """Finds all matches to the given value.
+
+        This function uses `SequenceMatcher` to find
+        all matches to the given value.
+
+        Parameters
+        ----------
+        value: :class:`_MatcherT`
+            The value to find.
+        key: Callable[[:class:`_MatcherT`], :class:`str`]
+            A function to convert the items to strings. Defaults to `str`.
+
+        Returns
+        -------
+        list[:class:`Finder.Result`[:class:`_MatcherT`]]
+            A list of all matches to the given value.
+        """
+
+        return [
+            Matcher.Result(
+                item,
+                SequenceMatcher(
+                    lambda i: i.isspace(),
+                    value.lower() if self.ignore_case else value,
+                    key(item).lower() if self.ignore_case else value,
+                ).ratio(),
+            )
+            for item in self.items
+        ]
 
 
 async def wait_until_midnight() -> Literal[True]:
