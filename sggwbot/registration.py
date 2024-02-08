@@ -38,7 +38,7 @@ from nextcord.ui import Modal, TextInput
 from sggwbot.console import Console, FontColour
 from sggwbot.errors import ExceptionData, RegistrationError
 from sggwbot.models import Model
-from sggwbot.utils import InteractionUtils, Matcher, MemberUtils, SmartDict
+from sggwbot.utils import InteractionUtils, Matcher, SmartDict
 
 if TYPE_CHECKING:
     from nextcord.guild import Guild
@@ -793,12 +793,9 @@ class MemberData:  # pylint: disable=too-many-instance-attributes
         """Converts the member data to an embed."""
         member = self.member
 
-        member_info = MemberUtils.convert_to_string(member)
-        member_info += f" ({member.mention})"
-
         embed = Embed(
             title="User information:",
-            description=member_info,
+            description=f"{member} ({member.mention})",
             colour=member.top_role.colour,
         ).set_thumbnail(
             url=member.avatar.url if member.avatar else member.default_avatar.url
@@ -895,10 +892,9 @@ class InfoModal(Modal):
 
         member = interaction.user
         assert isinstance(member, Member)
-        member_name = MemberUtils.convert_to_string(member)
 
         Console.specific(
-            f"User {member_name} has subbited a registration request, "
+            f"User {member} has subbited a registration request, "
             f"providing the following reason: {info_input.value}.",
             "Registration",
             FontColour.CYAN,
@@ -912,7 +908,7 @@ class InfoModal(Modal):
                 description=member.mention,
                 color=Colour.blurple(),
             )
-            .add_field(name="Name", value=member_name)
+            .add_field(name="Name", value=f"{member}")
             .add_field(name="Reason", value=info_input.value, inline=False)
             .add_field(name="ID", value=member.id, inline=False)
             .set_thumbnail(
@@ -1056,7 +1052,6 @@ class CodeModal(Modal):
         member = self._member_data.member
         index = self._member_data.index
         bot_channel = self._bot.get_bot_channel()
-        member_name = MemberUtils.convert_to_string(member)
 
         embed = (
             Embed(
@@ -1064,7 +1059,7 @@ class CodeModal(Modal):
                 description=member.mention,
                 colour=Colour.fuchsia(),
             )
-            .add_field(name="Name", value=member_name)
+            .add_field(name="Name", value=f"{member}")
             .add_field(name="Index", value=index)
             .add_field(name="ID", value=member.id, inline=False)
             .set_thumbnail(
@@ -1187,10 +1182,8 @@ class MailController:
         with open(path, "r", encoding="utf-8") as f:
             text = f.read()
 
-        display_name = MemberUtils.convert_to_string(self._member)
-
         text = (
-            text.replace("{{USER_DISPLAY_NAME}}", display_name)
+            text.replace("{{USER_DISPLAY_NAME}}", f"{self._member.display_name}")
             .replace("{{REGISTRATION_CODE}}", self._code_model.code)
             .replace("{{DISCORD_NAME}}", self._member.guild.name)
             .replace("{{CODE_EXPIRATION}}", self._code_model.expire)

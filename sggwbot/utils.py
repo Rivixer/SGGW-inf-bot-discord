@@ -89,8 +89,7 @@ class InteractionUtils(ABC):
                 command_name = InteractionUtils._command_name(interaction)
                 user: Member = interaction.user  # type: ignore
 
-                user_info = f"{user.display_name} "
-                user_info += f"({MemberUtils.convert_to_string(user)})"
+                user_info = f"{user.display_name} ({user})"
 
                 kwargs_info = " ".join(
                     f"{k}:{v}" for k, v in kwargs.items() if v is not None
@@ -253,31 +252,6 @@ class InteractionUtils(ABC):
             return wrapper
 
         return decorator
-
-
-class MemberUtils(ABC):  # pylint: disable=too-few-public-methods
-    """A class containing utility methods for members."""
-
-    @staticmethod
-    def convert_to_string(member: Member | User) -> str:
-        """Returns the name of a member with an optional discriminator,
-        if the member doesn't have a unique name.
-
-        Parameters
-        ----------
-        member: :class:`nextcord.Member`
-            The member to get the name of.
-
-        Returns
-        -------
-        :class:`str`
-            The name of the member with an optional discriminator.
-        """
-
-        name = member.name
-        if member.discriminator != "0":
-            name += f"#{member.discriminator}"
-        return name
 
 
 class PathUtils(ABC):  # pylint: disable=too-few-public-methods
