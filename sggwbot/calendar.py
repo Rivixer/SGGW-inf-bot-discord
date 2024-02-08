@@ -28,7 +28,7 @@ from nextcord.ui import Modal, TextInput
 from sggwbot.console import Console, FontColour
 from sggwbot.errors import ExceptionData, UpdateEmbedError
 from sggwbot.models import ControllerWithEmbed, EmbedModel, Model
-from sggwbot.utils import InteractionUtils, MemberUtils, wait_until_midnight
+from sggwbot.utils import InteractionUtils, wait_until_midnight
 
 if TYPE_CHECKING:
     from nextcord.embeds import Embed
@@ -873,7 +873,7 @@ class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
             description, date, time, prefix, location
         )
 
-        msg = f"{MemberUtils.convert_to_string(member)} "
+        msg = f"{member} "
         match self.modal_type:
             case EventModalType.ADD:
                 msg += "added a new event "

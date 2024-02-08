@@ -59,9 +59,9 @@ class AvatarMock:
 class MemberMock:
     name: str
     nick: str
-    discriminator: str
     id: int
     roles: list[RoleMock]
+    discriminator: str | None = None
     avatar: AvatarMock | None = None
     _guild: GuildMock | None = None
 
@@ -71,6 +71,11 @@ class MemberMock:
             self.guild.members.add(self)
         if not self.roles:
             self.roles = [DefaultRole()]
+
+    def __str__(self) -> str:
+        if self.discriminator:
+            return f"{self.name}#{self.discriminator}"
+        return self.name
 
     def __hash__(self) -> int:
         return self.id
