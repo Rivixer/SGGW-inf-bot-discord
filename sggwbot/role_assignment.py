@@ -24,7 +24,8 @@ import functools
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Concatenate, ParamSpec
+from typing import (TYPE_CHECKING, Any, Awaitable, Callable, Concatenate,
+                    ParamSpec)
 
 import nextcord
 from nextcord.application_command import SlashOption
@@ -38,7 +39,7 @@ from nextcord.message import Attachment
 
 from sggwbot.errors import UpdateEmbedError
 from sggwbot.models import ControllerWithEmbed, EmbedModel, Model
-from sggwbot.utils import Console, FontColour, InteractionUtils, MemberUtils
+from sggwbot.utils import Console, FontColour, InteractionUtils
 
 if TYPE_CHECKING:
     from nextcord.member import Member
@@ -285,15 +286,13 @@ class RoleAssignment(commands.Cog):
                 added_role = await controller.change_role(emoji, member)
                 if added_role is not None:
                     Console.specific(
-                        f"{MemberUtils.convert_to_string(member)} "
-                        f"changed their group to {added_role.name}.",
+                        f"{member} changed their group to {added_role.name}.",
                         "roles",
                         colour=FontColour.GREEN,
                     )
                 else:
                     Console.specific(
-                        f"{MemberUtils.convert_to_string(member)} "
-                        f"reset {controller.model.identifier} roles.",
+                        f"{member} reset {controller.model.identifier} roles.",
                         "roles",
                         colour=FontColour.GREEN,
                     )
