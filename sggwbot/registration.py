@@ -285,7 +285,7 @@ class RegistrationCog(commands.Cog):
     async def _edit_member_data(
         self,
         interaction: Interaction,
-        member_id: str = SlashOption(description="The mmember's ID."),
+        member_id: str = SlashOption(description="The member's ID."),
     ) -> None:
         """Edits the member data.
 
