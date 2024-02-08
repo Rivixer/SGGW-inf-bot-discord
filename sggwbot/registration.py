@@ -17,11 +17,10 @@ import os
 import random
 import string
 from dataclasses import dataclass, field
-from difflib import SequenceMatcher
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 import aiosmtplib
 import nextcord
@@ -39,7 +38,7 @@ from nextcord.ui import Modal, TextInput
 from sggwbot.console import Console, FontColour
 from sggwbot.errors import ExceptionData, RegistrationError
 from sggwbot.models import Model
-from sggwbot.utils import InteractionUtils, MemberUtils
+from sggwbot.utils import InteractionUtils, Matcher, MemberUtils, SmartDict
 
 if TYPE_CHECKING:
     from nextcord.guild import Guild
@@ -148,9 +147,7 @@ class RegistrationCog(commands.Cog):
 
         member: Member = interaction.user  # type: ignore
         try:
-            member_data = MemberData(member, index)
-
-            with CodeController(index, member_data) as ctrl:
+            with CodeController(index, member) as ctrl:
                 code_model = ctrl.code_model
                 if reason := code_model.check_if_blocked(index):
                     await interaction.response.send_message(reason, ephemeral=True)
@@ -172,7 +169,7 @@ class RegistrationCog(commands.Cog):
                         self._bot,
                         verifided_role,
                         code_model,
-                        member_data,
+                        MemberData.from_registration(member, index),
                         destination_address,
                     )
                     await interaction.response.send_modal(modal)
@@ -256,33 +253,41 @@ class RegistrationCog(commands.Cog):
             )
             return
 
+        # Reverse the list to show the most relevant members at the end.
+        matching_members = matching_members[::-1]
+
         embeds = []
-        for member_info in matching_members:
-            embeds.append(member_info.to_embed())
+        for member_data in matching_members:
+            embeds.append(member_data.to_embed())
+
+        message = (
+            f"Found **{len(embeds)}** member(s) matching the argument: **{argument}**"
+        )
 
         if len(embeds) > 10:
             await interaction.response.send_message(
-                f"Found {len(embeds)} members matching the argument: {argument}. "
-                "Showing only 10.",
+                message + "\n**Showing only 10.**",
                 embeds=embeds[:10],
                 ephemeral=True,
             )
         else:
-            await interaction.response.send_message(embeds=embeds, ephemeral=True)
+            await interaction.response.send_message(
+                message, embeds=embeds, ephemeral=True
+            )
 
     @nextcord.slash_command(
-        name="edit_member_info",
-        description="Edit the member info.",
+        name="edit_member_data",
+        description="Edit the member data.",
         dm_permission=False,
     )
     @InteractionUtils.with_info(catch_exceptions=[DiscordException])
     @InteractionUtils.with_log()
-    async def _edit_member_info(
+    async def _edit_member_data(
         self,
         interaction: Interaction,
         member_id: str = SlashOption(description="The mmember's ID."),
     ) -> None:
-        """Edits the member info.
+        """Edits the member data.
 
         Parameters
         ----------
@@ -364,50 +369,6 @@ class EditMemberInfoModal(Modal):
         )
 
 
-@dataclass(slots=True)
-class MemberInfo:
-    """Represents the member info."""
-
-    member: Member = field(compare=False)
-    member_info: dict[str, Any] = field(compare=False)
-    ratio: float
-
-    def to_embed(self) -> Embed:
-        """Converts the member info to an embed."""
-        member = self.member
-
-        member_info = MemberUtils.convert_to_string(member)
-        member_info += f" ({member.mention})"
-
-        embed = Embed(
-            title="User information:",
-            description=member_info,
-            colour=member.top_role.colour,
-        ).set_thumbnail(
-            url=member.avatar.url if member.avatar else member.default_avatar.url
-        )
-
-        info = {
-            "First name": self.member_info.get("FirstName"),
-            "Last name": self.member_info.get("LastName"),
-            "Student ID": self.member_info.get("StudentID"),
-            "Non-student reason": self.member_info.get("Non-student reason"),
-            "Another account reason": self.member_info.get("Another account reason"),
-        }
-
-        for k, v in info.items():
-            if v is not None:
-                embed.add_field(name=k, value=v)
-
-        embed.add_field(name="ID", value=self.member.id, inline=False)
-
-        everyone = member.guild.default_role
-        roles = [role.mention for role in member.roles if role != everyone][::-1]
-        embed.add_field(name="Roles", value=", ".join(roles), inline=False)
-
-        return embed
-
-
 class RegistrationModel(Model):
     """The model for :class:`.RegistrationCog`"""
 
@@ -470,9 +431,7 @@ class RegistrationModel(Model):
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4)
 
-    def find_matching_members(  # pylint: disable=too-many-locals
-        self, argument: str
-    ) -> list[MemberInfo]:
+    def find_matching_members(self, argument: str) -> list[MemberData]:
         """Finds the matching members.
 
         Parameters
@@ -482,7 +441,7 @@ class RegistrationModel(Model):
 
         Returns
         -------
-        list[:class:`.MemberInfo`]
+        list[:class:`.MemberData`]
             The matching members.
 
         Notes
@@ -494,55 +453,45 @@ class RegistrationModel(Model):
             - member's index
             - member's nick
         """
-
-        path = self._registered_users_path
-        if not path.exists():
-            return []
-        with open(path, "r", encoding="utf-8") as f:
-            data: dict[str, dict[str, Any]] = json.load(f)
-
         guild = self.bot.get_default_guild()
 
         if len(argument) == 6 and argument.isdigit():
-            for member_id, member_data in data.items():
-                if argument == member_data.get("StudentID"):
-                    member = guild.get_member(int(member_id))
-                    if member is None:
-                        break
-                    return [MemberInfo(member, member_data, 1.0)]
+            return self._find_members_by_index(argument, guild)
 
-        ret: list[MemberInfo] = []
         argument = argument.lower()
-        for member in guild.members:
-            member_data = data.get(str(member.id), {})
+        results = SmartDict[MemberData, float](lambda a, b: a > b)
+        matcher = Matcher[MemberData](
+            list(map(MemberData, guild.members)), ignore_case=True
+        )
+        keys: list[Callable[[MemberData], str]] = [
+            lambda i: i.index,
+            lambda i: str(i.member.id),
+            lambda i: i.member.display_name,
+            lambda i: i.member.name,
+            lambda i: i.first_name,
+            lambda i: i.last_name,
+            lambda i: i.first_name + i.last_name,
+            lambda i: i.last_name + i.first_name,
+        ]
 
-            first_name = member_data.get("FirstName", "")
-            last_name = member_data.get("LastName", "")
+        for key in keys:
+            for i in matcher.match_all(argument, key=key):
+                results[i.item] = i.ratio
 
-            to_compare = (
-                member.display_name,
-                member.name,
-                first_name,
-                last_name,
-                first_name + last_name,
-                last_name + first_name,
-                str(member.id),
-            )
-
-            ratio = max(
-                SequenceMatcher(None, i.lower(), argument).ratio() for i in to_compare
-            )
-            memebr_info = MemberInfo(member, member_data, ratio)
-            ret.append(memebr_info)
-
-        max_ratio = max(map(lambda i: i.ratio, ret))
-        threshold = max_ratio * 0.9
-
-        if max_ratio <= 0.5:
+        if (max_ratio := max(results.values())) <= 0.5:
             return []
 
-        ret.sort(key=lambda i: i.ratio)
-        return [i for i in ret if i.ratio >= threshold]
+        results = dict(sorted(results.items(), key=lambda i: i[1], reverse=True))
+
+        return [i[0] for i in results.items() if i[1] > max_ratio * 0.9]
+
+    def _find_members_by_index(self, index: str, guild: Guild) -> list[MemberData]:
+        matching_members = []
+        for member in guild.members:
+            member_data = MemberData(member)
+            if member_data.index == index:
+                matching_members.append(member_data)
+        return matching_members
 
 
 @dataclass(slots=True)
@@ -701,7 +650,7 @@ class CodeController:
     ----------
     index: :class:`str`
         The index number that the user provided.
-    member_data: :class:`.MemberData`
+    member: :class:`.MemberData`
         The data of the member.
     code_model: :class:`.CodeModel`
         The model of the code.
@@ -714,13 +663,19 @@ class CodeController:
             code = code_model.code
     """
 
+    __slots__ = (
+        "index",
+        "member",
+        "code_model",
+    )
+
     index: str
-    member_data: MemberData
+    member: Member
     code_model: CodeModel
 
-    def __init__(self, index: str, member: MemberData) -> None:
+    def __init__(self, index: str, member: Member) -> None:
         self.index = index
-        self.member_data = member
+        self.member = member
 
     @property
     def _registration_path(self) -> Path:
@@ -763,7 +718,7 @@ class CodeController:
         return "".join([random.choice(string.ascii_letters) for _ in range(8)])
 
     def __enter__(self) -> CodeController:
-        member_id = self.member_data.member.id
+        member_id = self.member.id
         code_model = self._codes_data.get(str(member_id))
         if code_model is None or code_model.is_valid is False:
             code = self._generate_code()
@@ -773,58 +728,133 @@ class CodeController:
 
     def __exit__(self, *_) -> None:
         data = self._codes_data
-        member = self.member_data.member
-        data[str(member.id)] = self.code_model
+        data[str(self.member.id)] = self.code_model
         with open(self._codes_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4, ensure_ascii=False, default=CodeModel.to_dict)
 
 
 @dataclass(slots=True)
-class MemberData:
-    """Represents a Member data for registration.
+class MemberData:  # pylint: disable=too-many-instance-attributes
+    """Represents the data of the member.
 
     Attributes
     ----------
     member: :class:`nextcord.Member`
-        The member who wants to register.
+        The member.
     index: :class:`str`
-        The index number that the user provided.
+        The member index number.
+    first_name: :class:`str`
+        The first name of the user.
+    last_name: :class:`str`
+        The last name of the user.
     is_student: :class:`bool`
         Whether the user is a student or not.
+    non_student_reason: :class:`str` | `None`
+        The reason why the user is not a student.
     other_accounts: list[:class:`nextcord.Member`]
         The list of other accounts that the user has.
+    other_account_reason: :class:`str` | `None`
+        The reason why the user has other accounts.
     """
 
     member: Member
-    index: str
+    index: str = field(init=False)
+    first_name: str = field(init=False)
+    last_name: str = field(init=False)
     is_student: bool = field(init=False)
+    non_student_reason: str | None = field(init=False)
     other_accounts: list[Member] = field(init=False)
+    other_account_reason: str | None = field(init=False)
 
     def __post_init__(self) -> None:
-        self.is_student = self._is_student()
-        self.other_accounts = self._get_other_accounts()
+        with open(self._registered_users_path, "r", encoding="utf-8") as f:
+            data: dict[str, dict[str, Any]] = json.load(f)
+        member_data = data.get(str(self.member.id), {})
+        self.index = member_data.get("StudentID", "")
+        self.first_name = member_data.get("FirstName", "")
+        self.last_name = member_data.get("LastName", "")
+        with open(self._student_indexes_path, "r", encoding="utf-8") as f:
+            self.is_student = self.index in f.read().splitlines()
+        self.non_student_reason = member_data.get("Non-student reason")
+        self.other_accounts = self._get_other_accounts(data)
+        self.other_account_reason = member_data.get("Another account reason")
 
-    def _is_student(self) -> bool:
+    def __hash__(self) -> int:
+        return hash(self.member)
+
+    @classmethod
+    def from_registration(cls, member: Member, index: str) -> MemberData:
+        """Creates a new instance of :class:`.MemberData` from registration."""
+        self = cls(member)
+        self.index = index
+        return self
+
+    def to_embed(self) -> Embed:
+        """Converts the member data to an embed."""
+        member = self.member
+
+        member_info = MemberUtils.convert_to_string(member)
+        member_info += f" ({member.mention})"
+
+        embed = Embed(
+            title="User information:",
+            description=member_info,
+            colour=member.top_role.colour,
+        ).set_thumbnail(
+            url=member.avatar.url if member.avatar else member.default_avatar.url
+        )
+
+        info = {
+            "First name": self.first_name,
+            "Last name": self.last_name,
+            "Student ID": self.index,
+            "Non-student reason": self.other_account_reason,
+            "Another account reason": self.other_account_reason,
+        }
+
+        for k, v in info.items():
+            if v is not None:
+                embed.add_field(name=k, value=v)
+
+        embed.add_field(name="ID", value=self.member.id, inline=False)
+
+        everyone = member.guild.default_role
+        roles = [role.mention for role in member.roles if role != everyone][::-1]
+        embed.add_field(name="Roles", value=", ".join(roles), inline=False)
+
+        return embed
+
+    @property
+    def _student_indexes_path(self) -> Path:
         path = Path("data/registration/student_indexes.txt")
         if not path.exists():
             path.touch()
             Console.warn(f"File {path} has been created.")
-        with open(path, "r", encoding="utf-8") as f:
-            return self.index in f.read().splitlines()
+        return path
 
-    def _get_other_accounts(self) -> list[Member]:
+    @property
+    def _registered_users_path(self) -> Path:
         path = Path("data/registration/registered_users.json")
         if not path.exists():
             with open(path, "w", encoding="utf-8") as f:
                 f.write(r"{}")
             Console.warn(f"File {path} has been created.")
-        with open(path, "r", encoding="utf-8") as f:
-            data: dict[str, dict[str, Any]] = json.load(f)
-        ret = []
-        for k, v in data.items():
-            if v.get("StudentID") == self.index and int(k) != self.member.id:
-                ret.append(self.member.guild.get_member(int(k)))
-        return ret
+        return path
+
+    def _is_student(self) -> bool:
+        with open(self._student_indexes_path, "r", encoding="utf-8") as f:
+            return self.index in f.read().splitlines()
+
+    def _get_other_accounts(self, data: dict[str, dict[str, Any]]) -> list[Member]:
+        return [
+            member
+            for k, v in data.items()
+            if (
+                v.get("StudentID") == self.index
+                and int(k) != self.member.id
+                and (member := self.member.guild.get_member(int(k))) is not None
+            )
+        ]
 
 
 class InfoModal(Modal):
@@ -914,7 +944,7 @@ class CodeModal(Modal):
     _member_data: MemberData
     _destination_address: str
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments
         self,
         bot: SGGWBot,
         verified_role: Role,
