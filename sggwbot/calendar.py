@@ -279,7 +279,7 @@ class CalendarCog(commands.Cog):
         # instead of in the `with_info` decorator,
         # because we don't have access to the event description there.
         msg = await interaction.original_message()
-        await msg.edit(f"The event **{event.full_info}** has been removed.")
+        await msg.edit(f"The event '{event.full_info}' has been removed.")
 
     @_calendar.subcommand(
         name="remove_expired_events",
