@@ -3,10 +3,12 @@
 import datetime
 import functools
 import json
+import uuid
 from pathlib import Path
 from typing import Any, Generator
 
 import pytest
+from nextcord.ui import TextInput
 from pytest import MonkeyPatch
 
 from sggwbot.calendar import (
@@ -14,6 +16,10 @@ from sggwbot.calendar import (
     CalendarEmbedModel,
     CalendarModel,
     Event,
+    EventModal,
+    EventModalType,
+    Notification,
+    NotificationModal,
 )
 
 from .mocks import *
@@ -59,25 +65,17 @@ def test_add_event_to_json(model: CalendarModel) -> None:
     dt = datetime.datetime(2012, 12, 2, 14, 15)
     event = Event("TestDescription", dt.date(), dt.time(), "TestPrefix", "TestLocation")
     model.add_event_to_json(event)
-    assert model._events_data == [
-        CalendarModel._RawEventData(
-            "TestDescription",
-            "02.12.2012",
-            "14.15",
-            "TestPrefix",
-            "TestLocation",
-        )
-    ]
     file_data = _load_data_from_json()
-    assert file_data.get("events") == [
-        {
+    assert file_data.get("events") == {
+        event.uuid: {
             "description": "TestDescription",
             "date": "02.12.2012",
             "time": "14.15",
             "prefix": "TestPrefix",
             "location": "TestLocation",
+            "notification": None,
         }
-    ]
+    }
 
 
 @pytest.mark.parametrize(
@@ -87,28 +85,28 @@ def test_add_event_to_json(model: CalendarModel) -> None:
 def test_add_event_with_datetime_separated_by_various_formats(
     ctrl: CalendarController, date_str: str, time_str: str
 ):
-    event = ctrl.add_event("", date_str, time_str, "", "")
+    event = ctrl.add_event_from_input("", date_str, time_str, "", "")
     expected_datetime = datetime.datetime(2023, 11, 1, 11, 22)
     expected_date = expected_datetime.date()
     expected_time = expected_datetime.time()
     assert event.date == expected_date
     assert event.time == expected_time
-    assert ctrl.model._events_data[-1].date == "01.11.2023"
-    assert ctrl.model._events_data[-1].time == "11.22"
+    assert ctrl.model.events_data[event.uuid]["date"] == "01.11.2023"
+    assert ctrl.model.events_data[event.uuid]["time"] == "11.22"
 
 
 def test_add_event_with_invalid_date(ctrl: CalendarController) -> None:
     with pytest.raises(ValueError):
-        ctrl.add_event("", "30.02.2022", None, "", "")
+        ctrl.add_event_from_input("", "30.02.2022", None, "", "")
 
 
 def test_add_event_with_invalid_time(ctrl: CalendarController) -> None:
     with pytest.raises(ValueError):
-        ctrl.add_event("", "01.02.2022", "25:33", "", "")
+        ctrl.add_event_from_input("", "01.02.2022", "25:33", "", "")
 
 
 def test_add_event_by_command(ctrl: CalendarController) -> None:
-    event = ctrl.add_event(
+    event = ctrl.add_event_from_input(
         "TestDescription", "1.11:2023", "11-22", "TestPrefix", "TestLocation"
     )
     dt = datetime.datetime(2023, 11, 1, 11, 22)
@@ -117,36 +115,40 @@ def test_add_event_by_command(ctrl: CalendarController) -> None:
     assert event.time == dt.time()
     assert event.prefix == "TestPrefix"
     assert event.location == "TestLocation"
-    assert ctrl.model._events_data[-1] == CalendarModel._RawEventData(
-        "TestDescription",
-        "01.11.2023",
-        "11.22",
-        "TestPrefix",
-        "TestLocation",
-    )
+    assert ctrl.model.events_data[event.uuid] == {
+        "description": "TestDescription",
+        "date": "01.11.2023",
+        "time": "11.22",
+        "prefix": "TestPrefix",
+        "location": "TestLocation",
+        "notification": None,
+    }
 
 
 def test_read_event_from_json(model: CalendarModel) -> None:
     dt = datetime.datetime(2023, 2, 23, 1, 0)
+    uuid_example = str(uuid.uuid4())
     data = {
-        "events": [
-            {
+        "events": {
+            uuid_example: {
                 "description": "test",
                 "date": "23.02.2023",
                 "time": "01.00",
                 "prefix": "prefix",
                 "location": "location",
+                "notification": None,
             }
-        ]
+        }
     }
 
     with open(TEST_JSON_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f)
     model._load_settings()
 
-    assert model.calendar_data == [
-        Event("test", dt.date(), dt.time(), "prefix", "location")
-    ]
+    event = Event("test", dt.date(), dt.time(), "prefix", "location")
+    event._uuid = uuid_example
+
+    assert model.calendar_data == [event]
 
 
 def test_remove_event_from_json(
@@ -155,10 +157,10 @@ def test_remove_event_from_json(
     event = Event("test", date_now, time_now, "prefix", "location")
     model.add_event_to_json(event)
     model.remove_event_from_json(model.calendar_data[0])
-    assert model._events_data == []
+    assert model.events_data == {}
     assert model.calendar_data == []
     file_data = _load_data_from_json()
-    assert file_data.get("events") == []
+    assert file_data.get("events") == {}
 
 
 def test_is_all_day_event(model: CalendarModel, date_now: datetime.datetime) -> None:
@@ -393,12 +395,12 @@ def test_event_weekday() -> None:
     assert event.weekday == "poniedziałek"
 
 
-def test_events_with_indexes(model: CalendarModel, date_now: datetime.date) -> None:
+def test_summary_of_events(model: CalendarModel, date_now: datetime.date) -> None:
     event1 = Event("test1", date_now, None, "prefix", "")
     model.add_event_to_json(event1)
     event2 = Event("test2", date_now, None, "", "location")
     model.add_event_to_json(event2)
-    assert model.events_with_indexes == f"1. {event1.full_info}\n2. {event2.full_info}"
+    assert model.summary_of_events == f"1. {event1.full_info}\n2. {event2.full_info}"
 
 
 def test_get_event_from_empty_calendar(model: CalendarModel) -> None:
@@ -448,3 +450,98 @@ def test_remove_event(
     model.add_event_to_json(event)
     model.remove_event_from_json(event)
     assert model.calendar_data == []
+
+
+@pytest.mark.asyncio
+async def test_add_event_in_the_past(ctrl: CalendarController) -> None:
+    modal = EventModal(EventModalType.ADD, controller=ctrl)
+    with pytest.raises(ValueError):
+        modal._validate_datetime("01.01.2000", "00:00")
+
+
+@pytest.mark.asyncio
+async def test_add_event_in_the_far_future(ctrl: CalendarController) -> None:
+    modal = EventModal(EventModalType.ADD, controller=ctrl)
+    with pytest.raises(ValueError):
+        modal._validate_datetime("01.01.9999", "00:00")
+
+
+@pytest.mark.asyncio
+async def test_add_event_in_the_same_day_in_the_past(
+    ctrl: CalendarController,
+    datetime_now: datetime.datetime,
+) -> None:
+    if datetime_now.time().hour == 0 and datetime_now.time().minute == 0:
+        pytest.skip("Test cannot be run at 00:00")
+    modal = EventModal(EventModalType.ADD, controller=ctrl)
+    with pytest.raises(ValueError):
+        modal._validate_datetime(datetime_now.date().strftime("%d.%m.%Y"), "00:00")
+
+
+@pytest.mark.asyncio
+async def test_add_event_in_the_same_day_in_the_future(
+    ctrl: CalendarController,
+    datetime_now: datetime.datetime,
+) -> None:
+    if datetime_now.time().hour == 23 and datetime_now.time().minute == 59:
+        pytest.skip("Test cannot be run at 23:59")
+    modal = EventModal(EventModalType.ADD, controller=ctrl)
+    modal._validate_datetime(datetime_now.date().strftime("%d.%m.%Y"), "23:59")
+
+
+@pytest.mark.asyncio
+async def test_add_event_in_the_same_day_all_day(
+    ctrl: CalendarController,
+    datetime_now: datetime.datetime,
+) -> None:
+    modal = EventModal(EventModalType.ADD, controller=ctrl)
+    modal._validate_datetime(datetime_now.date().strftime("%d.%m.%Y"), None)
+
+
+def test_add_event_with_now_date_and_time(
+    datetime_now: datetime.datetime,
+) -> None:
+    with pytest.raises(ValueError):
+        EventModal._validate_datetime(
+            None,  # type: ignore
+            datetime_now.date().strftime("%d.%m.%Y"),
+            datetime_now.time().strftime("%H:%M"),
+        )
+
+
+def test_add_notification_to_event(ctrl: CalendarController) -> None:
+    event = ctrl.add_event_from_input("", "01.01.2023", "00:00", "", "")
+    notification = Notification("2023-01-01T00:00:00", "content", "", 123, [456], {})
+    event.notification = notification
+    assert ctrl.model.events_data[event.uuid]["notification"] == notification.to_dict()
+
+
+def test_remove_notification_from_event(ctrl: CalendarController) -> None:
+    event = ctrl.add_event_from_input("", "01.01.2023", "00:00", "", "")
+    notification = Notification("2023-01-01 00:00:00", "content", "", 123, [456], {})
+    event.notification = notification
+    event.notification = None
+    assert ctrl.model.events_data[event.uuid]["notification"] is None
+
+
+@pytest.mark.asyncio
+async def test_add_notification_to_event_with_invalid_date(
+    ctrl: CalendarController,
+) -> None:
+    event = ctrl.add_event_from_input("", "01.01.2023", "00:00", "", "")
+    dt = datetime.datetime(2022, 1, 1, 0, 0)
+    modal = NotificationModal(event, GuildMock())  # type: ignore
+    with pytest.raises(ValueError):
+        modal._validate_datetime(dt)
+
+
+def test_notification_to_dict() -> None:
+    notification = Notification("2023-01-01T00:00:00", "content", "", 123, [456], {})
+    assert notification.to_dict() == {
+        "datetime_iso": "2023-01-01T00:00:00",
+        "content": "content",
+        "more_info": "",
+        "channel_id": 123,
+        "role_ids": [456],
+        "sent_data": {},
+    }
