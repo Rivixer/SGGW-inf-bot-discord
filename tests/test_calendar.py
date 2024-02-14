@@ -18,8 +18,8 @@ from sggwbot.calendar import (
     Event,
     EventModal,
     EventModalType,
-    Notification,
-    NotificationModal,
+    Reminder,
+    ReminderModal,
 )
 
 from .mocks import *
@@ -73,7 +73,7 @@ def test_add_event_to_json(model: CalendarModel) -> None:
             "time": "14.15",
             "prefix": "TestPrefix",
             "location": "TestLocation",
-            "notification": None,
+            "reminder": None,
         }
     }
 
@@ -121,7 +121,7 @@ def test_add_event_by_command(ctrl: CalendarController) -> None:
         "time": "11.22",
         "prefix": "TestPrefix",
         "location": "TestLocation",
-        "notification": None,
+        "reminder": None,
     }
 
 
@@ -136,7 +136,7 @@ def test_read_event_from_json(model: CalendarModel) -> None:
                 "time": "01.00",
                 "prefix": "prefix",
                 "location": "location",
-                "notification": None,
+                "reminder": None,
             }
         }
     }
@@ -509,35 +509,35 @@ def test_add_event_with_now_date_and_time(
         )
 
 
-def test_add_notification_to_event(ctrl: CalendarController) -> None:
+def test_add_reminder_to_event(ctrl: CalendarController) -> None:
     event = ctrl.add_event_from_input("", "01.01.2023", "00:00", "", "")
-    notification = Notification("2023-01-01T00:00:00", "content", "", 123, [456], {})
-    event.notification = notification
-    assert ctrl.model.events_data[event.uuid]["notification"] == notification.to_dict()
+    reminder = Reminder("2023-01-01T00:00:00", "content", "", 123, [456], {})
+    event.reminder = reminder
+    assert ctrl.model.events_data[event.uuid]["reminder"] == reminder.to_dict()
 
 
-def test_remove_notification_from_event(ctrl: CalendarController) -> None:
+def test_remove_reminder_from_event(ctrl: CalendarController) -> None:
     event = ctrl.add_event_from_input("", "01.01.2023", "00:00", "", "")
-    notification = Notification("2023-01-01 00:00:00", "content", "", 123, [456], {})
-    event.notification = notification
-    event.notification = None
-    assert ctrl.model.events_data[event.uuid]["notification"] is None
+    reminder = Reminder("2023-01-01 00:00:00", "content", "", 123, [456], {})
+    event.reminder = reminder
+    event.reminder = None
+    assert ctrl.model.events_data[event.uuid]["reminder"] is None
 
 
 @pytest.mark.asyncio
-async def test_add_notification_to_event_with_invalid_date(
+async def test_add_reminder_to_event_with_invalid_date(
     ctrl: CalendarController,
 ) -> None:
     event = ctrl.add_event_from_input("", "01.01.2023", "00:00", "", "")
     dt = datetime.datetime(2022, 1, 1, 0, 0)
-    modal = NotificationModal(event, GuildMock())  # type: ignore
+    modal = ReminderModal(event, GuildMock())  # type: ignore
     with pytest.raises(ValueError):
         modal._validate_datetime(dt)
 
 
-def test_notification_to_dict() -> None:
-    notification = Notification("2023-01-01T00:00:00", "content", "", 123, [456], {})
-    assert notification.to_dict() == {
+def test_reminder_to_dict() -> None:
+    reminder = Reminder("2023-01-01T00:00:00", "content", "", 123, [456], {})
+    assert reminder.to_dict() == {
         "datetime_iso": "2023-01-01T00:00:00",
         "content": "content",
         "more_info": "",
