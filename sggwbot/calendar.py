@@ -4,8 +4,8 @@
 The calendar embed is an embed that shows the events.
 The events are stored in the data/settings/calendar_settings.json file.
 
-Each event can have a notification set.
-To set a notification, use the `/calendar notification` command.
+Each event can have a reminder set.
+To set a reminder, use the `/calendar reminder` command.
 """
 
 # pylint: disable=too-many-lines
@@ -50,12 +50,12 @@ if TYPE_CHECKING:
 class CalendarCog(commands.Cog):
     """Cog to control the calendar embed."""
 
-    __slots__ = ("_bot", "_ctrl", "_model", "_notifications_ctrl")
+    __slots__ = ("_bot", "_ctrl", "_model", "_reminder_ctrl")
 
     _bot: SGGWBot
     _ctrl: CalendarController
     _model: CalendarModel
-    _notifications_ctrl: NotificationsController
+    _reminder_ctrl: ReminderController
 
     def __init__(self, bot: SGGWBot) -> None:
         """Initializes the Calendar cog."""
@@ -63,10 +63,10 @@ class CalendarCog(commands.Cog):
         self._model = CalendarModel()
         embed_model = CalendarEmbedModel(self._model, bot)
         self._ctrl = CalendarController(self._model, embed_model)
-        NotificationGenerator.settings = self._model.notification_embed_data
-        self._notifications_ctrl = NotificationsController(self._bot, self._model)
-        self._notifications_ctrl.load_notifications()
-        self._send_notifications_task.start()  # pylint: disable=no-member
+        ReminderGenerator.settings = self._model.reminder_embed_data
+        self._reminder_ctrl = ReminderController(self._bot, self._model)
+        self._reminder_ctrl.load_reminders()
+        self._send_reminders_task.start()  # pylint: disable=no-member
         self._remove_expired_events_task.start()  # pylint: disable=no-member
 
     @nextcord.slash_command(
@@ -350,8 +350,8 @@ class CalendarCog(commands.Cog):
             await wait_until_midnight()
 
     @_calendar.subcommand(
-        name="notification",
-        description="Set or edit an event notification.",
+        name="reminder",
+        description="Set or edit an event reminder.",
     )
     @InteractionUtils.with_info(
         catch_exceptions=[
@@ -365,14 +365,14 @@ class CalendarCog(commands.Cog):
         ],
     )
     @InteractionUtils.with_log()
-    async def _notification(
+    async def _reminder(
         self,
         interaction: Interaction,
         index: int = SlashOption(
             description="The index of the event to edit started from 1.",
         ),
     ) -> None:
-        """Sets or edits an event notification.
+        """Sets or edits an event reminder.
 
         Parameters
         ----------
@@ -388,16 +388,16 @@ class CalendarCog(commands.Cog):
         """
         event = self._model.get_event_at_index(index)
         guild: Guild = interaction.guild  # type: ignore
-        modal = NotificationModal(event, guild)
+        modal = ReminderModal(event, guild)
         await interaction.response.send_modal(modal)
 
     @_calendar.subcommand(
-        name="remove_notification",
-        description="Remove an event notification.",
+        name="remove_reminder",
+        description="Remove an event reminder.",
     )
     @InteractionUtils.with_info(
-        before="Removing the notification for the event with index **{index}**...",
-        after="The notification for the event has been removed.",
+        before="Removing the reminder for the event with index **{index}**...",
+        after="The reminder for the event has been removed.",
         catch_exceptions=[
             DiscordException,
             InvalidSettingsFile,
@@ -409,14 +409,14 @@ class CalendarCog(commands.Cog):
         ],
     )
     @InteractionUtils.with_log()
-    async def _remove_notification(
+    async def _remove_reminder(
         self,
         _: Interaction,
         index: int = SlashOption(
             description="The index of the event to edit started from 1.",
         ),
     ) -> None:
-        """Removes the notification for the event with the given index.
+        """Removes the reminder for the event with the given index.
 
         Parameters
         ----------
@@ -428,16 +428,16 @@ class CalendarCog(commands.Cog):
         Raises
         ------
         ValueError
-            The event has no notification set.
+            The event has no reminder set.
         """
         event = self._model.get_event_at_index(index)
-        if event.notification is None:
-            raise ValueError("The event has no notification set.")
-        event.notification = None
+        if event.reminder is None:
+            raise ValueError("The event has no reminder set.")
+        event.reminder = None
 
     @_calendar.subcommand(
-        name="notification_preview",
-        description="Preview the notification embed.",
+        name="reminder_preview",
+        description="Preview the reminder embed.",
     )
     @InteractionUtils.with_info(
         catch_exceptions=[
@@ -456,14 +456,14 @@ class CalendarCog(commands.Cog):
         ]
     )
     @InteractionUtils.with_log()
-    async def _notification_preview(
+    async def _reminder_preview(
         self,
         interaction: Interaction,
         index: int = SlashOption(
             description="The index of the event to edit started from 1.",
         ),
     ) -> None:
-        """Previews the notification embed for the event with the given index.
+        """Previews the reminder embed for the event with the given index.
 
         Parameters
         ----------
@@ -475,24 +475,24 @@ class CalendarCog(commands.Cog):
         Raises
         ------
         ValueError
-            The event has no notification set.
+            The event has no reminder set.
         """
         event = self._model.get_event_at_index(index)
-        if event.notification is None:
-            raise ValueError("The event has no notification set.")
+        if event.reminder is None:
+            raise ValueError("The event has no reminder set.")
 
         assert interaction.guild is not None
-        generator = NotificationGenerator(event, interaction.guild)
+        generator = ReminderGenerator(event, interaction.guild)
 
         await interaction.response.send_message(
             content=generator.preview_message, embed=generator.embed, ephemeral=True
         )
 
     @tasks.loop(count=1)
-    async def _send_notifications_task(self) -> None:
+    async def _send_reminders_task(self) -> None:
         await self._bot.wait_until_ready()
         while True:
-            await self._notifications_ctrl.send_notifications()  # type: ignore
+            await self._reminder_ctrl.send_reminders()  # type: ignore
             await asyncio.sleep(60 - datetime.datetime.now().second)
 
 
@@ -515,8 +515,8 @@ class Event:  # pylint: disable=too-many-instance-attributes
         The prefix of the event.
     location: :class:`str`
         The location of the event.
-    notification: :class:`Notification` | `None`
-        The notification for the event.
+    reminder: :class:`Reminder` | `None`
+        The reminder for the event.
 
     Events
     ------
@@ -535,7 +535,7 @@ class Event:  # pylint: disable=too-many-instance-attributes
     _time: datetime.time | None
     _prefix: str
     _location: str
-    _notification: Notification | None = field(default=None)
+    _reminder: Reminder | None = field(default=None)
 
     on_update: list[Callable[[Event], None]] = field(
         init=False, default_factory=list, compare=False, repr=False
@@ -573,7 +573,7 @@ class Event:  # pylint: disable=too-many-instance-attributes
                 ),
                 data["prefix"],
                 data["location"],
-                Notification.from_dict(d) if (d := data["notification"]) else None,
+                Reminder.from_dict(d) if (d := data["reminder"]) else None,
             )
         except KeyError as e:
             raise InvalidSettingsFile(
@@ -582,8 +582,8 @@ class Event:  # pylint: disable=too-many-instance-attributes
 
         self._uuid = _uuid
 
-        if self.notification:
-            self.notification.on_update.append(
+        if self.reminder:
+            self.reminder.on_update.append(
                 lambda _: self._on_update_invoke()  # pylint: disable=protected-access
             )
 
@@ -648,15 +648,15 @@ class Event:  # pylint: disable=too-many-instance-attributes
         self._on_update_invoke()
 
     @property
-    def notification(self) -> Notification | None:
-        """The notification for the event."""
-        return self._notification
+    def reminder(self) -> Reminder | None:
+        """The reminder for the event."""
+        return self._reminder
 
-    @notification.setter
-    def notification(self, value: Notification | None) -> None:
-        self._notification = value
-        if self._notification is not None:
-            self._notification.on_update.append(lambda _: self._on_update_invoke())
+    @reminder.setter
+    def reminder(self, value: Reminder | None) -> None:
+        self._reminder = value
+        if self._reminder is not None:
+            self._reminder.on_update.append(lambda _: self._on_update_invoke())
         self._on_update_invoke()
 
     @property
@@ -762,7 +762,7 @@ class Event:  # pylint: disable=too-many-instance-attributes
             "time": self.time.strftime("%H.%M") if self.time else None,
             "prefix": self.prefix,
             "location": self.location,
-            "notification": self.notification.to_dict() if self.notification else None,
+            "reminder": self.reminder.to_dict() if self.reminder else None,
         }
 
 
@@ -866,15 +866,13 @@ class CalendarModel(Model):
     @property
     def summary_of_events(self) -> str:
         """A summary of all events in the calendar.
-        Includes the index, the event full_info and the notification status.
+        Includes the index, the event full_info and the reminder status.
         In the format: `index. 🔔 full_info`.
         """
         result = []
         events = self.calendar_data
         for i, event in enumerate(events):
-            result.append(
-                f"{i+1}.{' 🔔' if event.notification else ''} {event.full_info}"
-            )
+            result.append(f"{i+1}.{' 🔔' if event.reminder else ''} {event.full_info}")
         return "\n".join(result)
 
     def add_event_to_json(self, event: Event) -> None:
@@ -923,24 +921,24 @@ class CalendarModel(Model):
         self._save_events_data(events_data)
 
     @property
-    def notification_embed_data(self) -> _NotificationSettings:
-        """The notification embed data used to generate the notification embed."""
-        data = self.data.get("notification")
+    def reminder_embed_data(self) -> _ReminderSettings:
+        """The reminder embed data used to generate the reminder embed."""
+        data = self.data.get("reminder")
         if data is None:
-            data = self._get_default_notification_embed_data()
-            self.update_settings("notification", data, force=True)
-        return _NotificationSettings.load(data)
+            data = self._get_default_reminder_embed_data()
+            self.update_settings("reminder", data, force=True)
+        return _ReminderSettings.load(data)
 
     def _save_events_data(self, events_data: dict[str, dict[str, Any]]) -> None:
         self.update_settings("events", events_data, force=True)
 
-    def _get_default_notification_embed_data(self) -> dict[str, Any]:
+    def _get_default_reminder_embed_data(self) -> dict[str, Any]:
         return {
             "_keywords": {
                 "{{DATETIME:X}}": "where X is one of (f, F, d, D, t, T, R) "
                 "(see https://discord-date.shyked.fr/)",
                 "{{DESCRIPTION}}": "the event description",
-                "{{CONTENT}}": "the notification content "
+                "{{CONTENT}}": "the reminder content "
                 "(if not set, it will be the event description)",
                 "{{ROLES}}": "the mentioned roles",
                 "{{LOCATION}}": "the event location",
@@ -1246,7 +1244,7 @@ class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
         old_event = self._event
         event = self._create_new_event()
 
-        update_date_result = self._update_notification_date(old_event, event)
+        update_date_result = self._update_reminder_date(old_event, event)
 
         if old_event is not None:
             self._controller.model.remove_event_from_json(old_event)
@@ -1258,10 +1256,10 @@ class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
         )
 
         embed = nextcord.utils.MISSING
-        if event.notification:
+        if event.reminder:
             guild: Guild = interaction.guild  # type: ignore
-            generator = NotificationGenerator(event, guild)
-            response_content += "\n\n**Notification preview:**\n"
+            generator = ReminderGenerator(event, guild)
+            response_content += "\n\n**Reminder preview:**\n"
             response_content += generator.preview_message
             embed = generator.embed
 
@@ -1303,34 +1301,34 @@ class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
         if dt > datetime.datetime.now() + datetime.timedelta(days=365 * 5):
             raise ValueError("The event date and time must be in the next 5 years.")
 
-    class _UpdateNotificationDateResult(Enum):
+    class _UpdateReminderDateResult(Enum):
         UNCHANGED = auto()
         UPDATED = auto()
         SET_TO_IN_HOUR = auto()
         SET_TO_EVENT = auto()
 
-    def _update_notification_date(
+    def _update_reminder_date(
         self, old_event: Event | None, new_event: Event
-    ) -> _UpdateNotificationDateResult:
+    ) -> _UpdateReminderDateResult:
         if old_event is None:
-            return self._UpdateNotificationDateResult.UNCHANGED
+            return self._UpdateReminderDateResult.UNCHANGED
 
         deltatime = new_event.datetime - old_event.datetime
         if deltatime.total_seconds() == 0:
-            return self._UpdateNotificationDateResult.UNCHANGED
+            return self._UpdateReminderDateResult.UNCHANGED
 
-        notification = new_event.notification
-        assert notification is not None
-        notification.datetime += deltatime
+        reminder = new_event.reminder
+        assert reminder is not None
+        reminder.datetime += deltatime
         now = datetime.datetime.now()
 
-        if notification.datetime < now:
-            notification.datetime = now + datetime.timedelta(hours=1)
-            if notification.datetime > new_event.datetime:
-                notification.datetime = new_event.datetime
-                return self._UpdateNotificationDateResult.SET_TO_EVENT
-            return self._UpdateNotificationDateResult.SET_TO_IN_HOUR
-        return self._UpdateNotificationDateResult.UPDATED
+        if reminder.datetime < now:
+            reminder.datetime = now + datetime.timedelta(hours=1)
+            if reminder.datetime > new_event.datetime:
+                reminder.datetime = new_event.datetime
+                return self._UpdateReminderDateResult.SET_TO_EVENT
+            return self._UpdateReminderDateResult.SET_TO_IN_HOUR
+        return self._UpdateReminderDateResult.UPDATED
 
     def _send_info_to_console(
         self,
@@ -1354,7 +1352,7 @@ class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
         self,
         old_event: Event | None,
         new_event: Event,
-        update_data_result: _UpdateNotificationDateResult,
+        update_data_result: _UpdateReminderDateResult,
     ) -> str:
         result = f"Event '{new_event.full_info}' has been "
 
@@ -1366,22 +1364,22 @@ class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
             case _:
                 raise NotImplementedError
 
-        if new_event.notification is not None:
+        if new_event.reminder is not None:
             match update_data_result:
-                case self._UpdateNotificationDateResult.UNCHANGED:
-                    result += "\n\nNotification date remains unchanged."
-                case self._UpdateNotificationDateResult.UPDATED:
+                case self._UpdateReminderDateResult.UNCHANGED:
+                    result += "\n\nReminder date remains unchanged."
+                case self._UpdateReminderDateResult.UPDATED:
                     assert old_event is not None
                     deltatime = new_event.datetime - old_event.datetime
-                    result += f"\n\nNotification date updated by {deltatime}."
-                case self._UpdateNotificationDateResult.SET_TO_IN_HOUR:
+                    result += f"\n\nReminder date updated by {deltatime}."
+                case self._UpdateReminderDateResult.SET_TO_IN_HOUR:
                     result += (
-                        "\n\nNotification date set to one hour from now "
+                        "\n\nReminder date set to one hour from now "
                         "due to event date/time rollback."
                     )
-                case self._UpdateNotificationDateResult.SET_TO_EVENT:
+                case self._UpdateReminderDateResult.SET_TO_EVENT:
                     result += (
-                        "\n\nNotification date set to event date/time "
+                        "\n\nReminder date set to event date/time "
                         "due to event date/time rollback."
                     )
                 case _:
@@ -1390,80 +1388,76 @@ class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
         return result
 
 
-class NotificationsController:
-    """Represents the notifications controller.
+class ReminderController:
+    """Represents the reminder controller.
 
     Methods
     -------
-    load_notifications()
-        Loads all notifications from the calendar model.
-    send_notifications()
-        Sends all notifications that are ready to be sent.
+    load_reminders()
+        Loads all reminders from the calendar model.
+    send_reminders()
+        Sends all reminders that are ready to be sent.
     """
 
     __slots__ = (
         "_bot",
         "_calendar_model",
-        "_notifications",
+        "_reminders",
     )
 
     _bot: SGGWBot
     _calendar_model: CalendarModel
-    _notifications: list[Notification]
+    _reminders: list[Reminder]
 
     def __init__(self, bot: SGGWBot, calendar_model: CalendarModel):
         self._bot = bot
         self._calendar_model = calendar_model
-        self._notifications = []
+        self._reminders = []
 
-    def load_notifications(self) -> None:
-        """Loads all notifications from the calendar model.
+    def load_reminders(self) -> None:
+        """Loads all reminders from the calendar model.
 
         Notes
         -----
         This method should be called once at the start of the bot."""
         for event in self._calendar_model.calendar_data:
-            if event.notification:
-                self._notifications.append(event.notification)
+            if event.reminder:
+                self._reminders.append(event.reminder)
 
-    async def send_notifications(self) -> None:
+    async def send_reminders(self) -> None:
         """|coro|
 
-        Sends all notifications that are ready to be sent.
+        Sends all reminders that are ready to be sent.
         """
-        await asyncio.gather(*(method for method in self._notification_methods))
+        await asyncio.gather(*(method for method in self._reminder_methods))
 
     @property
-    def _notification_methods(
+    def _reminder_methods(
         self,
     ) -> Generator[Coroutine[Any, Any, None], None, None]:
         current_time = datetime.datetime.now()
         guild: Guild = self._bot.get_default_guild()  # type: ignore
         for event in self._calendar_model.calendar_data:
-            notification = event.notification
-            if (
-                notification
-                and notification.datetime <= current_time
-                and not notification.is_sent
-            ):
-                yield notification.send(NotificationGenerator(event, guild))
+            reminder = event.reminder
+            if reminder and reminder.datetime <= current_time and not reminder.is_sent:
+                yield reminder.send(ReminderGenerator(event, guild))
 
 
 @dataclass(slots=True, frozen=True)
-class _NotificationSettings:
+class _ReminderSettings:
     plain_content: str
-    embed_settings: _NotificationEmbedSettings
+    embed_settings: _ReminderEmbedSettings
 
     @classmethod
-    def load(cls, data: dict[str, Any]) -> _NotificationSettings:
-        """Loads the notification settings from the dictionary."""
+    def load(cls, data: dict[str, Any]) -> _ReminderSettings:
+        """Loads the reminder settings from the dictionary."""
         text = data["text"]
-        embed = _NotificationEmbedSettings.load(data["embed"])
+        embed = _ReminderEmbedSettings.load(data["embed"])
         return cls(text, embed)
 
 
 @dataclass(slots=True, frozen=True)
-class _NotificationEmbedSettings:
+class _ReminderEmbedSettings:
 
     @dataclass(slots=True, frozen=True)
     class _Thumbnail:
@@ -1489,8 +1483,8 @@ class _NotificationEmbedSettings:
     fields: dict[str, _Field]
 
     @classmethod
-    def load(cls, data: dict[str, Any]) -> _NotificationEmbedSettings:
-        """Loads the notification embed settings from the dictionary."""
+    def load(cls, data: dict[str, Any]) -> _ReminderEmbedSettings:
+        """Loads the reminder embed settings from the dictionary."""
         title = data["title"]
         description = data["description"]
         thumbnail = cls._Thumbnail(**data["thumbnail"])
@@ -1500,56 +1494,56 @@ class _NotificationEmbedSettings:
 
 
 @dataclass(slots=True, frozen=True)
-class NotificationGenerator:
-    """Represents a notification generator.
+class ReminderGenerator:
+    """Represents a reminder generator.
 
     Attributes
     ----------
     event: :class:`.Event`
-        The event to generate the notification for.
+        The event to generate the reminder for.
     guild: :class:`nextcord.Guild`
-        The guild to send the notification to.
+        The guild to send the reminder to.
 
     Class Attributes
     ----------------
-    settings: :class:`_NotificationSettings`
-        The notification settings.
+    settings: :class:`_ReminderSettings`
+        The reminder settings.
 
     Properties
     ----------
     preview_message: :class:`str`
-        The preview message of the notification.
-    notification: :class:`.Notification`
-        The notification of the event.
+        The preview message of the reminder.
+    reminder: :class:`.Reminder`
+        The reminder of the event.
     channel_to_send: :class:`nextcord.TextChannel`
-        The channel to send the notification to.
+        The channel to send the reminder to.
     roles_to_ping: list[:class:`nextcord.Role`]
         The roles to ping.
     plain_content: :class:`str`
-        The plain content of the notification.
+        The plain content of the reminder.
     content: :class:`str`
-        The content of the notification.
+        The content of the reminder.
     embed: :class:`nextcord.Embed`
-        The embed of the notification.
+        The embed of the reminder.
     """
 
     event: Event
     guild: Guild
-    settings: ClassVar[_NotificationSettings] = field(init=False)
+    settings: ClassVar[_ReminderSettings] = field(init=False)
 
     def __post_init__(self) -> None:
-        if self.event.notification is None:
-            raise ValueError("The event has no notification")
+        if self.event.reminder is None:
+            raise ValueError("The event has no reminder")
 
     @property
     def preview_message(self) -> str:
-        """The preview message of the notification.
+        """The preview message of the reminder.
 
-        Contains the reminder date, the channel to send the notification to
-        and the content of the notification.
+        Contains the reminder date, the channel to send the reminder to
+        and the content of the reminder.
         """
-        short_dt = format_dt(self.notification.datetime, style="f")
-        relative_dt = format_dt(self.notification.datetime, style="R")
+        short_dt = format_dt(self.reminder.datetime, style="f")
+        relative_dt = format_dt(self.reminder.datetime, style="R")
         return (
             f"Reminder date: {short_dt} ({relative_dt})\n"
             f"Channel: {self.channel_to_send.mention} \n\n"
@@ -1557,19 +1551,19 @@ class NotificationGenerator:
         )
 
     @property
-    def notification(self) -> Notification:
-        """The notification of the event."""
-        return self.event.notification  # type: ignore
+    def reminder(self) -> Reminder:
+        """The reminder of the event."""
+        return self.event.reminder  # type: ignore
 
     @property
     def channel_to_send(self) -> TextChannel:
-        """The channel to send the notification to."""
-        return self.guild.get_channel(self.notification.channel_id)  # type: ignore
+        """The channel to send the reminder to."""
+        return self.guild.get_channel(self.reminder.channel_id)  # type: ignore
 
     @property
     def roles_to_ping(self) -> list[Role]:
         """The roles to ping."""
-        return list(filter(None, map(self.guild.get_role, self.notification.role_ids)))
+        return list(filter(None, map(self.guild.get_role, self.reminder.role_ids)))
 
     @property
     def _color(self) -> int:
@@ -1588,22 +1582,22 @@ class NotificationGenerator:
 
     @property
     def plain_content(self) -> str:
-        """The plain content of the notification.
+        """The plain content of the reminder.
 
         The plain content is the text that will be sent first and then replaced with the embed.
 
-        It is useful for push notifications on mobile devices.
+        It is useful for push reminders on mobile devices.
         """
         return self._replace_keywords(self.settings.plain_content)
 
     @property
     def content(self) -> str:
-        """The content of the notification."""
+        """The content of the reminder."""
         return ", ".join(map(lambda i: i.mention, self.roles_to_ping))
 
     @property
     def embed(self) -> Embed:
-        """The embed of the notification."""
+        """The embed of the reminder."""
         embed = Embed(
             title=self.settings.embed_settings.title,
             description=self._description,
@@ -1641,7 +1635,7 @@ class NotificationGenerator:
                 inline=location_field.inline,
             )
 
-        if self.notification.more_info:
+        if self.reminder.more_info:
             embed.add_field(
                 name=more_info_field.name,
                 value=self._replace_keywords(more_info_field.value),
@@ -1653,7 +1647,7 @@ class NotificationGenerator:
     @property
     def _description(self) -> str:
         return self.settings.embed_settings.description.replace(
-            "{{CONTENT}}", self.notification.content
+            "{{CONTENT}}", self.reminder.content
         )
 
     def _replace_keywords(self, text: str) -> str:
@@ -1669,27 +1663,27 @@ class NotificationGenerator:
             )
         else:
             text = text.replace(
-                "{{DATETIME}}", self.event.datetime.strftime(Notification.DT_FORMAT)
+                "{{DATETIME}}", self.event.datetime.strftime(Reminder.DT_FORMAT)
             )
 
         text = text.replace("{{LOCATION}}", self.event.location)
-        text = text.replace("{{MORE_INFO}}", self.notification.more_info)
+        text = text.replace("{{MORE_INFO}}", self.reminder.more_info)
         text = text.replace("{{DESCRIPTION}}", self.event.description)
 
-        roles = filter(None, map(self.guild.get_role, self.notification.role_ids))
+        roles = filter(None, map(self.guild.get_role, self.reminder.role_ids))
         text = text.replace("{{ROLES}}", " ".join(map(lambda i: i.mention, roles)))
 
         return text
 
 
 @dataclass(slots=True)
-class Notification:  # pylint: disable=too-many-instance-attributes
-    """Represents a notification.
+class Reminder:  # pylint: disable=too-many-instance-attributes
+    """Represents a reminder.
 
     Attributes
     ----------
-    on_update: list[Callable[[Notification], None]]
-        The event that is invoked when the notification is updated.
+    on_update: list[Callable[[Reminder], None]]
+        The event that is invoked when the reminder is updated.
 
     Class Attributes
     ----------------
@@ -1701,13 +1695,13 @@ class Notification:  # pylint: disable=too-many-instance-attributes
     Properties with setters
     ----------
     datetime: :class:`datetime.datetime`
-        The datetime of the notification.
+        The datetime of the reminder.
     content: :class:`str`
-        The content of the notification.
+        The content of the reminder.
     more_info: :class:`str`
         More information about the event.
     channel_id: :class:`int`
-        The ID of the channel to send the notification.
+        The ID of the channel to send the reminder.
     role_ids: list[:class:`int`]
         The IDs of the roles to ping.
 
@@ -1716,31 +1710,31 @@ class Notification:  # pylint: disable=too-many-instance-attributes
     Properties
     ----------
     is_sent: :class:`bool`
-        Whether the notification has been sent.
+        Whether the reminder has been sent.
     time_to_send: :class:`datetime.timedelta`
-        The time to send the notification.
+        The time to send the reminder.
 
     Methods
     -------
     get_channel(guild: :class:`nextcord.Guild`) -> :class:`nextcord.TextChannel` | `None`
-        Gets the channel to send the notification to.
+        Gets the channel to send the reminder to.
     get_roles(guild: :class:`nextcord.Guild`) -> list[:class:`nextcord.Role`]
         Gets the roles to ping.
     get_sent_channel(guild: :class:`nextcord.Guild`) -> :class:`nextcord.TextChannel` | `None`
-        Gets the channel the notification has been sent to.
+        Gets the channel the reminder has been sent to.
     get_sent_message(guild: :class:`nextcord.Guild`) -> :class:`nextcord.PartialMessage` | `None`
-        Gets the message the notification has been sent to.
+        Gets the message the reminder has been sent to.
     try_delete_sent_message(guild: :class:`nextcord.Guild`) -> :class:`None`
-        Tries to delete the message the notification has been sent to.
-    send(generator: :class:`NotificationGenerator`) -> :class:`None`
-        Sends the notification.
+        Tries to delete the message the reminder has been sent to.
+    send(generator: :class:`ReminderGenerator`) -> :class:`None`
+        Sends the reminder.
     to_dict() -> :class:`dict`
-        Converts the notification to a dictionary.
+        Converts the reminder to a dictionary.
 
     Class Methods
     -------------
-    from_dict(data: :class:`dict`) -> :class:`Notification`
-        Creates a notification from the dictionary.
+    from_dict(data: :class:`dict`) -> :class:`Reminder`
+        Creates a reminder from the dictionary.
     """
 
     _datetime_iso: str
@@ -1754,7 +1748,7 @@ class Notification:  # pylint: disable=too-many-instance-attributes
     DT_FORMAT: ClassVar[str] = "%d.%m.%Y %H:%M"
     DT_FORMAT_PLACEHOLDER: ClassVar[str] = "dd.mm.yyyy hh:mm"
 
-    on_update: list[Callable[[Notification], None]] = field(
+    on_update: list[Callable[[Reminder], None]] = field(
         init=False, default_factory=list
     )
 
@@ -1762,8 +1756,8 @@ class Notification:  # pylint: disable=too-many-instance-attributes
         self.datetime = datetime.datetime.fromisoformat(self._datetime_iso)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> Notification:
-        """Creates a notification from the dictionary."""
+    def from_dict(cls, data: dict[str, Any]) -> Reminder:
+        """Creates a reminder from the dictionary."""
         try:
             return cls(
                 data["datetime_iso"],
@@ -1774,11 +1768,11 @@ class Notification:  # pylint: disable=too-many-instance-attributes
                 data["sent_data"],
             )
         except KeyError as e:
-            raise InvalidSettingsFile(f"Invalid notification data: {e}") from e
+            raise InvalidSettingsFile(f"Invalid reminder data: {e}") from e
 
     @property
     def datetime(self) -> datetime.datetime:
-        """The datetime of the notification."""
+        """The datetime of the reminder."""
         return self._datetime
 
     @datetime.setter
@@ -1788,7 +1782,7 @@ class Notification:  # pylint: disable=too-many-instance-attributes
 
     @property
     def content(self) -> str:
-        """The content of the notification."""
+        """The content of the reminder."""
         return self._content
 
     @content.setter
@@ -1808,7 +1802,7 @@ class Notification:  # pylint: disable=too-many-instance-attributes
 
     @property
     def channel_id(self) -> int:
-        """The ID of the channel to send the notification."""
+        """The ID of the channel to send the reminder."""
         return self._channel_id
 
     @channel_id.setter
@@ -1828,16 +1822,16 @@ class Notification:  # pylint: disable=too-many-instance-attributes
 
     @property
     def is_sent(self) -> bool:
-        """Whether the notification has been sent."""
+        """Whether the reminder has been sent."""
         return bool(self._sent_data)
 
     @property
     def time_to_send(self) -> datetime.timedelta:
-        """The time to send the notification."""
+        """The time to send the reminder."""
         return self.datetime - datetime.datetime.now()
 
     def get_channel(self, guild: Guild) -> TextChannel | None:
-        """Gets the channel to send the notification to.
+        """Gets the channel to send the reminder to.
 
         Parameters
         ----------
@@ -1847,7 +1841,7 @@ class Notification:  # pylint: disable=too-many-instance-attributes
         Returns
         -------
         :class:`nextcord.TextChannel` | `None`
-            The channel to send the notification to.
+            The channel to send the reminder to.
         """
         channel = guild.get_channel(self.channel_id)
         assert channel is None or isinstance(channel, TextChannel)
@@ -1873,7 +1867,7 @@ class Notification:  # pylint: disable=too-many-instance-attributes
         return list(filter(None, map(guild.get_role, self.role_ids)))
 
     def get_sent_channel(self, guild: Guild) -> TextChannel | None:
-        """Gets the channel the notification has been sent to.
+        """Gets the channel the reminder has been sent to.
 
         Parameters
         ----------
@@ -1883,24 +1877,24 @@ class Notification:  # pylint: disable=too-many-instance-attributes
         Returns
         -------
         :class:`nextcord.TextChannel` | `None`
-            The channel the notification has been sent to.
+            The channel the reminder has been sent to.
         """
         return guild.get_channel(self._sent_data.get("channel_id", 0))  # type: ignore
 
     async def get_sent_message(self, guild: Guild) -> PartialMessage | None:
         """|coro|
 
-        Gets the message the notification has been sent to.
+        Gets the message the reminder has been sent to.
 
         Parameters
         ----------
         guild: :class:`nextcord.Guild`
-            The guild the notification was sent in.
+            The guild the reminder was sent in.
 
         Returns
         -------
         :class:`nextcord.PartialMessage` | `None`
-            The message the notification has been sent to.
+            The message the reminder has been sent to.
         """
         if (channel := self.get_sent_channel(guild)) is None:
             return None
@@ -1909,14 +1903,14 @@ class Notification:  # pylint: disable=too-many-instance-attributes
     async def try_delete_sent_message(self, guild: Guild) -> None:
         """|coro|
 
-        Tries to delete the message the notification has been sent to.
+        Tries to delete the message the reminder has been sent to.
 
         If the message has been deleted, the sent data will be cleared.
 
         Parameters
         ----------
         guild: :class:`nextcord.Guild`
-            The guild the notification was sent in.
+            The guild the reminder was sent in.
         """
         if (message := await self.get_sent_message(guild)) is not None:
             try:
@@ -1925,15 +1919,15 @@ class Notification:  # pylint: disable=too-many-instance-attributes
                 pass
             self._sent_data = {}
 
-    async def send(self, generator: NotificationGenerator) -> None:
+    async def send(self, generator: ReminderGenerator) -> None:
         """|coro|
 
-        Sends the notification.
+        Sends the reminder.
 
         Parameters
         ----------
-        generator: :class:`NotificationGenerator`
-            The notification generator.
+        generator: :class:`ReminderGenerator`
+            The reminder generator.
         """
         channel = self.get_channel(generator.guild)
         assert isinstance(channel, TextChannel)
@@ -1944,12 +1938,12 @@ class Notification:  # pylint: disable=too-many-instance-attributes
         self._on_update_invoke()
 
     def to_dict(self) -> dict[str, Any]:
-        """Converts the notification to a dictionary.
+        """Converts the reminder to a dictionary.
 
         Returns
         -------
         :class:`dict`
-            The dictionary representation of the notification.
+            The dictionary representation of the reminder.
         """
         return {
             "datetime_iso": self.datetime.isoformat(),
@@ -1965,8 +1959,8 @@ class Notification:  # pylint: disable=too-many-instance-attributes
             func(self)
 
 
-class NotificationModal(Modal):
-    """A modal to set or edit a notification for an event."""
+class ReminderModal(Modal):
+    """A modal to set or edit a reminder for an event."""
 
     __slots__ = (
         "roles_to_ping_input",
@@ -1988,16 +1982,16 @@ class NotificationModal(Modal):
     guild: Guild
 
     def __init__(self, event: Event, guild: Guild):
-        title = ("Set" if event.notification is None else "Edit") + " a notification"
+        title = ("Set" if event.reminder is None else "Edit") + " a reminder"
         super().__init__(title=title, timeout=None)
 
         self.event = event
         self.guild = guild
-        notification = event.notification
+        reminder = event.reminder
 
         roles = filter(
             None,
-            map(self.guild.get_role, notification.role_ids if notification else []),
+            map(self.guild.get_role, reminder.role_ids if reminder else []),
         )
         self.roles_to_ping_input = TextInput(
             label="Roles to ping:",
@@ -2008,9 +2002,7 @@ class NotificationModal(Modal):
         )
         self.add_item(self.roles_to_ping_input)
 
-        channel = (
-            self.guild.get_channel(notification.channel_id) if notification else None
-        )
+        channel = self.guild.get_channel(reminder.channel_id) if reminder else None
         self.channel_to_send_input = TextInput(
             label="Channel to send:",
             placeholder="The channel name or ID",
@@ -2022,8 +2014,8 @@ class NotificationModal(Modal):
 
         self.datetime_input = TextInput(
             label="Datetime to send:",
-            placeholder=Notification.DT_FORMAT_PLACEHOLDER,
-            default_value=self._get_default_datetime().strftime(Notification.DT_FORMAT),
+            placeholder=Reminder.DT_FORMAT_PLACEHOLDER,
+            default_value=self._get_default_datetime().strftime(Reminder.DT_FORMAT),
             max_length=16,
             required=True,
         )
@@ -2032,7 +2024,7 @@ class NotificationModal(Modal):
         self.content_input = TextInput(
             label="Content:",
             placeholder="The content (default: event description)",
-            default_value=notification.content if notification else event.description,
+            default_value=reminder.content if reminder else event.description,
             style=TextInputStyle.paragraph,
             required=True,
             max_length=1024,
@@ -2042,7 +2034,7 @@ class NotificationModal(Modal):
         self.more_info_input = TextInput(
             label="More informaton:",
             placeholder="More information about the event",
-            default_value=notification.more_info if notification else "",
+            default_value=reminder.more_info if reminder else "",
             style=TextInputStyle.paragraph,
             required=False,
             max_length=1024,
@@ -2062,24 +2054,22 @@ class NotificationModal(Modal):
         assert isinstance(member, Member)
         await interaction.response.defer()
 
-        old_notification = self.event.notification
-        notification = self._create_new_notification()
-        self.event.notification = notification
+        old_reminder = self.event.reminder
+        reminder = self._create_new_reminder()
+        self.event.reminder = reminder
 
-        self._send_info_to_console(member, old_notification, notification)
+        self._send_info_to_console(member, old_reminder, reminder)
 
         await asyncio.gather(
             *(
                 self._send_response_with_preview(interaction),
-                self._remove_notification_if_sent(old_notification),
+                self._remove_reminder_if_sent(old_reminder),
             )
         )
 
-    async def _remove_notification_if_sent(
-        self, notification: Notification | None
-    ) -> None:
-        if notification and notification.is_sent:
-            await notification.try_delete_sent_message(self.guild)
+    async def _remove_reminder_if_sent(self, reminder: Reminder | None) -> None:
+        if reminder and reminder.is_sent:
+            await reminder.try_delete_sent_message(self.guild)
 
     def _validate_datetime(self, dt: datetime.datetime) -> None:
         is_in_past = (
@@ -2093,7 +2083,7 @@ class NotificationModal(Modal):
         if dt.date() > self.event.datetime.date():
             raise ValueError("The datetime must be before the event.")
 
-    def _create_new_notification(self) -> Notification:
+    def _create_new_reminder(self) -> Reminder:
         roles = self._find_roles(self.roles_to_ping_input.value or "")
         roles.sort(key=lambda i: i.position, reverse=True)
         channel = self._find_channel(self.channel_to_send_input.value or "")
@@ -2103,10 +2093,10 @@ class NotificationModal(Modal):
         if (datetime_value := self.datetime_input.value) is None:
             raise ValueError("The datetime is invalid.")
 
-        dt = datetime.datetime.strptime(datetime_value, Notification.DT_FORMAT)
+        dt = datetime.datetime.strptime(datetime_value, Reminder.DT_FORMAT)
         self._validate_datetime(dt)
 
-        return Notification(
+        return Reminder(
             dt.isoformat(),
             content,
             more_info,
@@ -2116,8 +2106,8 @@ class NotificationModal(Modal):
         )
 
     def _get_default_datetime(self) -> datetime.datetime:
-        if notification := self.event.notification:
-            return notification.datetime
+        if reminder := self.event.reminder:
+            return reminder.datetime
         return max(
             (
                 self.event.datetime - datetime.timedelta(days=1),
@@ -2128,38 +2118,38 @@ class NotificationModal(Modal):
     def _send_info_to_console(
         self,
         member: Member,
-        old_notification: Notification | None,
-        new_notification: Notification,
+        old_reminder: Reminder | None,
+        new_reminder: Reminder,
     ) -> None:
 
-        def get_notification_info(notification: Notification) -> str:
-            channel = notification.get_channel(self.guild)
+        def get_reminder_info(reminder: Reminder) -> str:
+            channel = reminder.get_channel(self.guild)
             channel_name = channel.name if channel else "Unknown channel"
-            roles = notification.get_roles(self.guild)
+            roles = reminder.get_roles(self.guild)
             return (
-                f"({notification.datetime.strftime(Notification.DT_FORMAT)} | {channel_name}) "
-                f"[{', '.join(map(str, roles))}] {notification.content}"
+                f"({reminder.datetime.strftime(Reminder.DT_FORMAT)} | {channel_name}) "
+                f"[{', '.join(map(str, roles))}] {reminder.content}"
             )
 
         msg = f"{member} "
-        if old_notification is None:
-            msg += f"set a notification for the event '{self.event.full_info}': "
+        if old_reminder is None:
+            msg += f"set a reminder for the event '{self.event.full_info}': "
         else:
             msg += (
-                f"edited the notification for the event '{self.event.full_info}': "
-                f"'{get_notification_info(old_notification)}' -> "
+                f"edited the reminder for the event '{self.event.full_info}': "
+                f"'{get_reminder_info(old_reminder)}' -> "
             )
-        msg += f"'{get_notification_info(new_notification)}'"
+        msg += f"'{get_reminder_info(new_reminder)}'"
         Console.specific(msg, "Calendar", FontColour.GREEN, bold_type=True)
 
     async def _send_response_with_preview(self, interaction: Interaction) -> None:
         guild = interaction.guild
         assert guild is not None
 
-        generator = NotificationGenerator(self.event, guild)
+        generator = ReminderGenerator(self.event, guild)
 
         await interaction.followup.send(
-            f"**The notification has been set.**\n\n{generator.preview_message}",
+            f"**The reminder has been set.**\n\n{generator.preview_message}",
             embed=generator.embed,
             ephemeral=True,
         )
