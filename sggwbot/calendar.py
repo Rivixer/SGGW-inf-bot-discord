@@ -957,27 +957,27 @@ class CalendarModel(Model):
                     "default": 16763432,
                     "use_role_color_if_single_was_pinged": True,
                 },
-            },
-            "fields": {
-                "datetime": {
-                    "name": "When?",
-                    "value": "{{DATETIME:f}}",
-                    "inline": True,
-                },
-                "datetime_all_day": {
-                    "name": "When?",
-                    "value": "{{DATETIME:D}}",
-                    "inline": True,
-                },
-                "location": {
-                    "name": "Where?",
-                    "value": "{{LOCATION}}",
-                    "inline": True,
-                },
-                "more_info": {
-                    "name": "More information:",
-                    "value": "{{MORE_INFO}}",
-                    "inline": False,
+                "fields": {
+                    "datetime": {
+                        "name": "When?",
+                        "value": "{{DATETIME:f}}",
+                        "inline": True,
+                    },
+                    "datetime_all_day": {
+                        "name": "When?",
+                        "value": "{{DATETIME:D}}",
+                        "inline": True,
+                    },
+                    "location": {
+                        "name": "Where?",
+                        "value": "{{LOCATION}}",
+                        "inline": True,
+                    },
+                    "more_info": {
+                        "name": "More information:",
+                        "value": "{{MORE_INFO}}",
+                        "inline": False,
+                    },
                 },
             },
         }
