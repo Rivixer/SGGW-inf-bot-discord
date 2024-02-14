@@ -3,6 +3,9 @@
 
 The calendar embed is an embed that shows the events.
 The events are stored in the data/settings/calendar_settings.json file.
+
+Each event can have a notification set.
+To set a notification, use the `/calendar notification` command.
 """
 
 # pylint: disable=too-many-lines
@@ -36,8 +39,7 @@ from nextcord.utils import format_dt
 from sggwbot.console import Console, FontColour
 from sggwbot.errors import ExceptionData, InvalidSettingsFile, UpdateEmbedError
 from sggwbot.models import ControllerWithEmbed, EmbedModel, Model
-from sggwbot.utils import (InteractionUtils, Matcher, SmartDict,
-                           wait_until_midnight)
+from sggwbot.utils import InteractionUtils, Matcher, SmartDict, wait_until_midnight
 
 if TYPE_CHECKING:
     from nextcord.guild import Guild
@@ -936,10 +938,10 @@ class CalendarModel(Model):
         return {
             "_keywords": {
                 "{{DATETIME:X}}": "where X is one of (f, F, d, D, t, T, R) "
-                                    "(see https://discord-date.shyked.fr/)",
+                "(see https://discord-date.shyked.fr/)",
                 "{{DESCRIPTION}}": "the event description",
                 "{{CONTENT}}": "the notification content "
-                                "(if not set, it will be the event description)",
+                "(if not set, it will be the event description)",
                 "{{ROLES}}": "the mentioned roles",
                 "{{LOCATION}}": "the event location",
                 "{{MORE_INFO}}": "more information about the event",
@@ -1373,11 +1375,15 @@ class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
                     deltatime = new_event.datetime - old_event.datetime
                     result += f"\n\nNotification date updated by {deltatime}."
                 case self._UpdateNotificationDateResult.SET_TO_IN_HOUR:
-                    result += "\n\nNotification date set to one hour from now "\
-                                "due to event date/time rollback."
+                    result += (
+                        "\n\nNotification date set to one hour from now "
+                        "due to event date/time rollback."
+                    )
                 case self._UpdateNotificationDateResult.SET_TO_EVENT:
-                    result += "\n\nNotification date set to event date/time "\
-                                "due to event date/time rollback."
+                    result += (
+                        "\n\nNotification date set to event date/time "
+                        "due to event date/time rollback."
+                    )
                 case _:
                     raise NotImplementedError
 
@@ -2062,12 +2068,16 @@ class NotificationModal(Modal):
 
         self._send_info_to_console(member, old_notification, notification)
 
-        await asyncio.gather(*(
-            self._send_response_with_preview(interaction),
-            self._remove_notification_if_sent(old_notification),
-        ))
+        await asyncio.gather(
+            *(
+                self._send_response_with_preview(interaction),
+                self._remove_notification_if_sent(old_notification),
+            )
+        )
 
-    async def _remove_notification_if_sent(self, notification: Notification | None) -> None:
+    async def _remove_notification_if_sent(
+        self, notification: Notification | None
+    ) -> None:
         if notification and notification.is_sent:
             await notification.try_delete_sent_message(self.guild)
 
