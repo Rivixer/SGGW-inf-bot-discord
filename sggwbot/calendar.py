@@ -1437,10 +1437,25 @@ class ReminderController:
     ) -> Generator[Coroutine[Any, Any, None], None, None]:
         current_time = datetime.datetime.now()
         guild: Guild = self._bot.get_default_guild()  # type: ignore
+
+        async def send_reminder(event: Event) -> None:
+            reminder = event.reminder
+            assert reminder is not None
+            try:
+                await reminder.send(ReminderGenerator(event, guild))
+            except (InvalidSettingsFile, ValueError, DiscordException) as e:
+                Console.specific(
+                    f"An error occurred while sending the reminder for the event "
+                    f"'{event.full_info}': {e}",
+                    "Calendar",
+                    FontColour.RED,
+                    bold_type=True,
+                )
+
         for event in self._calendar_model.calendar_data:
             reminder = event.reminder
             if reminder and reminder.datetime <= current_time and not reminder.is_sent:
-                yield reminder.send(ReminderGenerator(event, guild))
+                yield send_reminder(event)
 
 
 @dataclass(slots=True, frozen=True)
@@ -1842,9 +1857,17 @@ class Reminder:  # pylint: disable=too-many-instance-attributes
         -------
         :class:`nextcord.TextChannel` | `None`
             The channel to send the reminder to.
+
+        Raises
+        ------
+        ValueError
+            The channel with the ID is not found or is not a text channel.
         """
         channel = guild.get_channel(self.channel_id)
-        assert channel is None or isinstance(channel, TextChannel)
+        if channel is None:
+            raise ValueError(f"Channel with ID {self.channel_id} not found")
+        if not isinstance(channel, TextChannel):
+            raise ValueError(f"Channel with ID {self.channel_id} is not a text channel")
         return channel
 
     def get_roles(self, guild: Guild) -> list[Role]:
