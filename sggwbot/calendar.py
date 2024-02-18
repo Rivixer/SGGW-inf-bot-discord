@@ -37,9 +37,11 @@ from nextcord.ui import Modal, TextInput
 from nextcord.utils import format_dt
 
 from sggwbot.console import Console, FontColour
-from sggwbot.errors import ExceptionData, InvalidSettingsFile, UpdateEmbedError
+from sggwbot.errors import (ExceptionData, InvalidSettingsFile,
+                            MissingPermission, UpdateEmbedError)
 from sggwbot.models import ControllerWithEmbed, EmbedModel, Model
-from sggwbot.utils import InteractionUtils, Matcher, SmartDict, wait_until_midnight
+from sggwbot.utils import (InteractionUtils, Matcher, SmartDict,
+                           wait_until_midnight)
 
 if TYPE_CHECKING:
     from nextcord.guild import Guild
@@ -2064,7 +2066,17 @@ class ReminderModal(Modal):
         )
         self.add_item(self.more_info_input)
 
-    @InteractionUtils.with_info(catch_exceptions=[ValueError, UpdateEmbedError])
+    @InteractionUtils.with_info(
+        catch_exceptions=[
+            ValueError,
+            UpdateEmbedError,
+            ExceptionData(
+                MissingPermission,
+                with_traceback_in_log=False,
+                with_traceback_in_response=False,
+            ),
+        ]
+    )
     async def callback(self, interaction: Interaction) -> None:
         """The callback for the modal.
 
@@ -2077,8 +2089,22 @@ class ReminderModal(Modal):
         assert isinstance(member, Member)
         await interaction.response.defer()
 
+        roles = self._find_roles(self.roles_to_ping_input.value or "")
+        roles.sort(key=lambda i: i.position, reverse=True)
+
+        channel = self._find_channel(self.channel_to_send_input.value or "")
+        self._check_permissions(channel)
+
+        if (datetime_value := self.datetime_input.value) is None:
+            raise ValueError("The datetime is invalid.")
+        dt = datetime.datetime.strptime(datetime_value, Reminder.DT_FORMAT)
+        self._validate_datetime(dt)
+
+        content = self.content_input.value or self.event.description
+        more_info = self.more_info_input.value or ""
+
         old_reminder = self.event.reminder
-        reminder = self._create_new_reminder()
+        reminder = self._create_new_reminder(dt, content, more_info, channel, roles)
         self.event.reminder = reminder
 
         self._send_info_to_console(member, old_reminder, reminder)
@@ -2106,19 +2132,29 @@ class ReminderModal(Modal):
         if dt.date() > self.event.datetime.date():
             raise ValueError("The datetime must be before the event.")
 
-    def _create_new_reminder(self) -> Reminder:
-        roles = self._find_roles(self.roles_to_ping_input.value or "")
-        roles.sort(key=lambda i: i.position, reverse=True)
-        channel = self._find_channel(self.channel_to_send_input.value or "")
-        content = self.content_input.value or self.event.description
-        more_info = self.more_info_input.value or ""
+    @staticmethod
+    def _check_permissions(channel: TextChannel) -> None:
+        needed_permissions = [
+            "view_channel",
+            "send_messages",
+            "embed_links",
+            "read_message_history",
+            "read_messages",
+        ]
+        for permission in needed_permissions:
+            if not getattr(channel.permissions_for(channel.guild.me), permission):
+                raise MissingPermission(
+                    f"Missing '{permission}' permission in {channel.mention}."
+                )
 
-        if (datetime_value := self.datetime_input.value) is None:
-            raise ValueError("The datetime is invalid.")
-
-        dt = datetime.datetime.strptime(datetime_value, Reminder.DT_FORMAT)
-        self._validate_datetime(dt)
-
+    def _create_new_reminder(  # pylint: disable=too-many-arguments
+        self,
+        dt: datetime.datetime,
+        content: str,
+        more_info: str,
+        channel: TextChannel,
+        roles: list[Role],
+    ) -> Reminder:
         return Reminder(
             dt.isoformat(),
             content,
