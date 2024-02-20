@@ -1250,6 +1250,7 @@ class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
 
         if old_event is not None:
             self._controller.model.remove_event_from_json(old_event)
+            event.reminder = old_event.reminder
 
         self._send_info_to_console(old_event, event, member)
 
