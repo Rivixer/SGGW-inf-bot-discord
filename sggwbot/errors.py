@@ -25,8 +25,13 @@ class AttachmentError(SGGWBotError):
 class NoVoiceConnection(SGGWBotError):
     """No voice connection."""
 
+
 class InvalidSettingsFile(SGGWBotError):
     """Invalid settings file."""
+
+
+class MissingPermission(SGGWBotError):
+    """Missing permission."""
 
 
 @dataclass
