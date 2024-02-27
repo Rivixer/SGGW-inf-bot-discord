@@ -204,6 +204,18 @@ class CalendarCog(commands.Cog):
         await interaction.response.send_modal(modal)
 
     @_calendar.subcommand(
+        name="add_hidden",
+        description="Add a new hidden event.",
+    )
+    @InteractionUtils.with_info(
+        catch_exceptions=[UpdateEmbedError, InvalidSettingsFile, ValueError]
+    )
+    @InteractionUtils.with_log()
+    async def _add_hidden(self, interaction: Interaction) -> None:
+        modal = EventModal(EventModalType.ADD_HIDDEN, self._ctrl)
+        await interaction.response.send_modal(modal)
+
+    @_calendar.subcommand(
         name="edit",
         description="Edit an event.",
     )
@@ -222,17 +234,79 @@ class CalendarCog(commands.Cog):
     async def _edit(
         self,
         interaction: Interaction,
-        index: int = SlashOption(
+        index: str = SlashOption(
             description="The index of the event to edit started from 1.",
         ),
     ) -> None:
-        event = self._model.get_event_at_index(index)
+        event = self._model.get_event_with_index(index)
         modal = EventModal(
             EventModalType.EDIT,
             self._ctrl,
             event=event,
         )
         await interaction.response.send_modal(modal)
+
+    @_calendar.subcommand(
+        name="hide",
+        description="Hide an event.",
+    )
+    @InteractionUtils.with_info(
+        before="Hiding event with index **{index}**...",
+        after="The event has been hidden.",
+        catch_exceptions=[
+            UpdateEmbedError,
+            ValueError,
+            ExceptionData(
+                IndexError,
+                with_traceback_in_response=False,
+                with_traceback_in_log=False,
+            ),
+        ],
+    )
+    @InteractionUtils.with_log()
+    async def _hide(
+        self,
+        _: Interaction,
+        index: str = SlashOption(
+            description="The index of the event to hide started from 1.",
+        ),
+    ) -> None:
+        event = self._model.get_event_with_index(index)
+        if event.is_hidden:
+            raise ValueError("The event is already hidden.")
+        event.is_hidden = True
+        await self._ctrl.update_embed()
+
+    @_calendar.subcommand(
+        name="show",
+        description="Show an event.",
+    )
+    @InteractionUtils.with_info(
+        before="Showing event with index **{index}**...",
+        after="The event has been showed.",
+        catch_exceptions=[
+            UpdateEmbedError,
+            ValueError,
+            ExceptionData(
+                IndexError,
+                with_traceback_in_response=False,
+                with_traceback_in_log=False,
+            ),
+        ],
+    )
+    @InteractionUtils.with_log()
+    async def _show(
+        self,
+        _: Interaction,
+        index: str = SlashOption(
+            description="The index of the event to show started from 1.",
+        ),
+    ) -> None:
+        event = self._model.get_event_with_index(index)
+        if not event.is_hidden:
+            raise ValueError("The event is already visible.")
+        event.is_hidden = False
+        await self._ctrl.update_embed()
 
     @_calendar.subcommand(
         name="events_summary",
@@ -242,7 +316,7 @@ class CalendarCog(commands.Cog):
         catch_exceptions=[DiscordException, InvalidSettingsFile]
     )
     @InteractionUtils.with_log()
-    async def _show(self, interaction: Interaction) -> None:
+    async def _events_summary(self, interaction: Interaction) -> None:
         """Shows summary of all events.
 
         Parameters
@@ -274,7 +348,7 @@ class CalendarCog(commands.Cog):
     async def _remove(
         self,
         interaction: Interaction,
-        index: int = SlashOption(
+        index: str = SlashOption(
             description="The index of the event to remove started from 1.",
         ),
     ) -> None:
@@ -293,7 +367,7 @@ class CalendarCog(commands.Cog):
             The embed could not be updated.
         """
 
-        event = self._model.get_event_at_index(index)
+        event = self._model.get_event_with_index(index)
         self._model.remove_event_from_json(event)
         await self._ctrl.update_embed()
 
@@ -328,7 +402,7 @@ class CalendarCog(commands.Cog):
         """
 
         removed_events = self._model.remove_expired_events()
-        if removed_events:
+        if any(map(lambda i: not i.is_hidden, removed_events)):
             await self._ctrl.update_embed()
 
     @tasks.loop(count=1)
@@ -370,7 +444,7 @@ class CalendarCog(commands.Cog):
     async def _reminder(
         self,
         interaction: Interaction,
-        index: int = SlashOption(
+        index: str = SlashOption(
             description="The index of the event to edit started from 1.",
         ),
     ) -> None:
@@ -388,7 +462,7 @@ class CalendarCog(commands.Cog):
         UpdateEmbedError
             The embed could not be updated.
         """
-        event = self._model.get_event_at_index(index)
+        event = self._model.get_event_with_index(index)
         guild: Guild = interaction.guild  # type: ignore
         modal = ReminderModal(event, guild)
         await interaction.response.send_modal(modal)
@@ -414,7 +488,7 @@ class CalendarCog(commands.Cog):
     async def _remove_reminder(
         self,
         _: Interaction,
-        index: int = SlashOption(
+        index: str = SlashOption(
             description="The index of the event to edit started from 1.",
         ),
     ) -> None:
@@ -432,7 +506,7 @@ class CalendarCog(commands.Cog):
         ValueError
             The event has no reminder set.
         """
-        event = self._model.get_event_at_index(index)
+        event = self._model.get_event_with_index(index)
         if event.reminder is None:
             raise ValueError("The event has no reminder set.")
         event.reminder = None
@@ -461,7 +535,7 @@ class CalendarCog(commands.Cog):
     async def _reminder_preview(
         self,
         interaction: Interaction,
-        index: int = SlashOption(
+        index: str = SlashOption(
             description="The index of the event to edit started from 1.",
         ),
     ) -> None:
@@ -479,7 +553,7 @@ class CalendarCog(commands.Cog):
         ValueError
             The event has no reminder set.
         """
-        event = self._model.get_event_at_index(index)
+        event = self._model.get_event_with_index(index)
         if event.reminder is None:
             raise ValueError("The event has no reminder set.")
 
@@ -537,6 +611,7 @@ class Event:  # pylint: disable=too-many-instance-attributes
     _time: datetime.time | None
     _prefix: str
     _location: str
+    _is_hidden: bool = field(default=False)
     _reminder: Reminder | None = field(default=None)
 
     on_update: list[Callable[[Event], None]] = field(
@@ -575,6 +650,7 @@ class Event:  # pylint: disable=too-many-instance-attributes
                 ),
                 data["prefix"],
                 data["location"],
+                data.get("is_hidden", False),
                 Reminder.from_dict(d) if (d := data["reminder"]) else None,
             )
         except KeyError as e:
@@ -647,6 +723,16 @@ class Event:  # pylint: disable=too-many-instance-attributes
     @location.setter
     def location(self, value: str) -> None:
         self._location = value
+        self._on_update_invoke()
+
+    @property
+    def is_hidden(self) -> bool:
+        """Whether the event is hidden in the calendar embed."""
+        return self._is_hidden
+
+    @is_hidden.setter
+    def is_hidden(self, value: bool) -> None:
+        self._is_hidden = value
         self._on_update_invoke()
 
     @property
@@ -726,11 +812,16 @@ class Event:  # pylint: disable=too-many-instance-attributes
         """The full information of the event in format:
 
         `(date) [prefix if exists] **description**
-        [location if exists] (time if not an all-day event)
+        [location if exists] (time if not an all-day event) (hidden if hidden)`
 
-        Similar to :attr:`.Event.full_name` but with the date at the beginning.
+        Similar to :attr:`.Event.full_name` but with the date at the beginning
+        and the hidden status at the end.
         """
-        return f"({self.date.strftime('%d.%m.%Y')}) {self.full_name}"
+        return (
+            f"({self.date.strftime('%d.%m.%Y')}) "
+            f"{self.full_name}"
+            f"{' (hidden)' if self.is_hidden else ''}"
+        )
 
     @property
     def weekday(self) -> str:
@@ -764,6 +855,7 @@ class Event:  # pylint: disable=too-many-instance-attributes
             "time": self.time.strftime("%H.%M") if self.time else None,
             "prefix": self.prefix,
             "location": self.location,
+            "is_hidden": self.is_hidden,
             "reminder": self.reminder.to_dict() if self.reminder else None,
         }
 
@@ -798,12 +890,14 @@ class CalendarModel(Model):
         result.sort(key=functools.cmp_to_key(Event.compare_method))
         return result
 
-    def get_event_at_index(self, index: int) -> Event:
-        """Returns the event at the specified index.
+    def get_event_with_index(self, index: str) -> Event:
+        """Returns the event with the specified index.
+
+        If the index starts with `_`, the event is hidden.
 
         Parameters
         ----------
-        index: :class:`int`
+        index: :class:`str`
             The index of the event to get.
 
         Returns
@@ -817,8 +911,33 @@ class CalendarModel(Model):
             - If the index is out of bounds (less than 1 or greater than the number of events).
             - If there are no events.
         """
+        is_hidden = index.startswith("_")
+        idx = int(index[1:] if is_hidden else index)
+        return self.get_event_at_index(idx, is_hidden=is_hidden)
 
-        events = self.calendar_data
+    def get_event_at_index(self, index: int, *, is_hidden: bool = False) -> Event:
+        """Returns the event at the specified index.
+
+        Parameters
+        ----------
+        index: :class:`int`
+            The index of the event to get.
+        is_hidden: :class:`bool`
+            Whether the event is hidden in the calendar embed.
+
+        Returns
+        -------
+        :class:`.Event`
+            The found event.
+
+        Raises
+        ------
+        IndexError
+            - If the index is out of bounds (less than 1 or greater than the number of events).
+            - If there are no events.
+        """
+
+        events = [e for e in self.calendar_data if e.is_hidden == is_hidden]
         number_of_events = len(events)
 
         if number_of_events == 0:
@@ -870,11 +989,22 @@ class CalendarModel(Model):
         """A summary of all events in the calendar.
         Includes the index, the event full_info and the reminder status.
         In the format: `index. 🔔 full_info`.
+        If the event is hidden, it is prefixed with `_`.
         """
         result = []
-        events = self.calendar_data
-        for i, event in enumerate(events):
-            result.append(f"{i+1}.{' 🔔' if event.reminder else ''} {event.full_info}")
+        visible_events = [e for e in self.calendar_data if not e.is_hidden]
+        hidden_events = [e for e in self.calendar_data if e.is_hidden]
+
+        if visible_events:
+            result.append("Visible events:")
+            for i, event in enumerate(visible_events):
+                result.append(f"{i+1}.{' 🔔' if event.reminder else ''} {event.full_info}")
+
+        if hidden_events:
+            result.append("\nHidden events:")
+            for i, event in enumerate(hidden_events):
+                result.append(f"_{i+1}.{' 🔔' if event.reminder else ''} {event.full_info}")
+
         return "\n".join(result)
 
     def add_event_to_json(self, event: Event) -> None:
@@ -892,7 +1022,7 @@ class CalendarModel(Model):
     def get_grouped_events(
         self,
     ) -> Generator[tuple[datetime.date, list[Event]], None, None]:
-        """An iterator that reads all events from settings and sorts them.
+        """An iterator that reads all visible events from settings and sorts them.
 
         Yields
         ------
@@ -902,6 +1032,9 @@ class CalendarModel(Model):
         calendar: dict[datetime.date, list[Event]] = {}
 
         for event in self.calendar_data:
+            if event.is_hidden:
+                continue
+
             try:
                 calendar[event.date].append(event)
             except KeyError:
@@ -1097,6 +1230,7 @@ class EventModalType(Enum):
     """Represents type of event modal."""
 
     ADD = auto()
+    ADD_HIDDEN = auto()
     EDIT = auto()
 
 
@@ -1170,6 +1304,8 @@ class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
         match modal_type:
             case EventModalType.ADD:
                 title = "Add a new event"
+            case EventModalType.ADD_HIDDEN:
+                title = "Add a new hidden event"
             case EventModalType.EDIT:
                 title = "Edit the event"
             case _:
@@ -1267,9 +1403,13 @@ class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
             response_content += generator.preview_message
             embed = generator.embed
 
+        async def update_embed_if_event_is_visible() -> None:
+            if not event.is_hidden:
+                await self._controller.update_embed()
+
         await asyncio.gather(
             *(
-                self._controller.update_embed(),
+                update_embed_if_event_is_visible(),
                 interaction.followup.send(
                     response_content, embed=embed, ephemeral=True
                 ),
@@ -1285,9 +1425,14 @@ class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
 
         self._validate_datetime(date, time)
 
-        return self._controller.add_event_from_input(
+        event = self._controller.add_event_from_input(
             description, date, time, prefix, location
         )
+
+        if self.modal_type is EventModalType.ADD_HIDDEN:
+            event.is_hidden = True
+
+        return event
 
     def _validate_datetime(self, date: str, time: str | None) -> None:
         dt = CalendarModel.convert_datetime_input(date, time)
@@ -1343,6 +1488,8 @@ class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
         match self.modal_type:
             case EventModalType.ADD:
                 content += "added a new event."
+            case EventModalType.ADD_HIDDEN:
+                content += "added a new hidden event."
             case EventModalType.EDIT:
                 assert old_event is not None
                 content += f"edited the event '{old_event.full_info}' -> "
@@ -1360,7 +1507,7 @@ class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
         result = f"Event '{new_event.full_info}' has been "
 
         match self.modal_type:
-            case EventModalType.ADD:
+            case EventModalType.ADD | EventModalType.ADD_HIDDEN:
                 result += "added."
             case EventModalType.EDIT:
                 result += "edited."
