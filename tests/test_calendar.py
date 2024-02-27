@@ -73,6 +73,27 @@ def test_add_event_to_json(model: CalendarModel) -> None:
             "time": "14.15",
             "prefix": "TestPrefix",
             "location": "TestLocation",
+            "is_hidden": False,
+            "reminder": None,
+        }
+    }
+
+
+def test_add_hidden_event_to_json(model: CalendarModel) -> None:
+    dt = datetime.datetime(2012, 12, 2, 14, 15)
+    event = Event(
+        "TestDescription", dt.date(), dt.time(), "TestPrefix", "TestLocation", True
+    )
+    model.add_event_to_json(event)
+    file_data = _load_data_from_json()
+    assert file_data.get("events") == {
+        event.uuid: {
+            "description": "TestDescription",
+            "date": "02.12.2012",
+            "time": "14.15",
+            "prefix": "TestPrefix",
+            "location": "TestLocation",
+            "is_hidden": True,
             "reminder": None,
         }
     }
@@ -121,6 +142,7 @@ def test_add_event_by_command(ctrl: CalendarController) -> None:
         "time": "11.22",
         "prefix": "TestPrefix",
         "location": "TestLocation",
+        "is_hidden": False,
         "reminder": None,
     }
 
@@ -400,7 +422,10 @@ def test_summary_of_events(model: CalendarModel, date_now: datetime.date) -> Non
     model.add_event_to_json(event1)
     event2 = Event("test2", date_now, None, "", "location")
     model.add_event_to_json(event2)
-    assert model.summary_of_events == f"1. {event1.full_info}\n2. {event2.full_info}"
+    assert (
+        model.summary_of_events
+        == f"Visible events:\n1. {event1.full_info}\n2. {event2.full_info}"
+    )
 
 
 def test_get_event_from_empty_calendar(model: CalendarModel) -> None:
