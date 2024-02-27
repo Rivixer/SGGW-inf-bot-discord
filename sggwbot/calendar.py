@@ -1246,17 +1246,18 @@ class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
         old_event = self._event
         event = self._create_new_event()
 
-        update_date_result = self._update_reminder_date(old_event, event)
-
         if old_event is not None:
-            self._controller.model.remove_event_from_json(old_event)
             event.reminder = old_event.reminder
+        update_date_result = self._update_reminder_date(old_event, event)
 
         self._send_info_to_console(old_event, event, member)
 
         response_content = self._generate_response_content(
             old_event, event, update_date_result
         )
+
+        if old_event is not None:
+            self._controller.model.remove_event_from_json(old_event)
 
         embed = nextcord.utils.MISSING
         if event.reminder:
@@ -1313,7 +1314,7 @@ class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
     def _update_reminder_date(
         self, old_event: Event | None, new_event: Event
     ) -> _UpdateReminderDateResult:
-        if old_event is None:
+        if old_event is None or new_event.reminder is None:
             return self._UpdateReminderDateResult.UNCHANGED
 
         deltatime = new_event.datetime - old_event.datetime
@@ -1321,7 +1322,6 @@ class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
             return self._UpdateReminderDateResult.UNCHANGED
 
         reminder = new_event.reminder
-        assert reminder is not None
         reminder.datetime += deltatime
         now = datetime.datetime.now()
 
