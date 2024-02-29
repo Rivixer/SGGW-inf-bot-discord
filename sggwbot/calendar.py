@@ -18,6 +18,7 @@ import functools
 import re
 import sys
 import uuid
+from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Callable, ClassVar, Coroutine, Generator
@@ -241,6 +242,37 @@ class CalendarCog(commands.Cog):
         event = self._model.get_event_with_index(index)
         modal = EventModal(
             EventModalType.EDIT,
+            self._ctrl,
+            event=event,
+        )
+        await interaction.response.send_modal(modal)
+
+    @_calendar.subcommand(
+        name="copy",
+        description="Copy an event.",
+    )
+    @InteractionUtils.with_info(
+        catch_exceptions=[
+            UpdateEmbedError,
+            ValueError,
+            ExceptionData(
+                IndexError,
+                with_traceback_in_response=False,
+                with_traceback_in_log=False,
+            ),
+        ],
+    )
+    @InteractionUtils.with_log()
+    async def _copy(
+        self,
+        interaction: Interaction,
+        index: str = SlashOption(
+            description="The index of the event to copy started from 1.",
+        ),
+    ) -> None:
+        event = self._model.get_event_with_index(index)
+        modal = EventModal(
+            EventModalType.COPY,
             self._ctrl,
             event=event,
         )
@@ -998,12 +1030,16 @@ class CalendarModel(Model):
         if visible_events:
             result.append("Visible events:")
             for i, event in enumerate(visible_events):
-                result.append(f"{i+1}.{' 🔔' if event.reminder else ''} {event.full_info}")
+                result.append(
+                    f"{i+1}.{' 🔔' if event.reminder else ''} {event.full_info}"
+                )
 
         if hidden_events:
             result.append("\nHidden events:")
             for i, event in enumerate(hidden_events):
-                result.append(f"_{i+1}.{' 🔔' if event.reminder else ''} {event.full_info}")
+                result.append(
+                    f"_{i+1}.{' 🔔' if event.reminder else ''} {event.full_info}"
+                )
 
         return "\n".join(result)
 
@@ -1232,6 +1268,7 @@ class EventModalType(Enum):
     ADD = auto()
     ADD_HIDDEN = auto()
     EDIT = auto()
+    COPY = auto()
 
 
 class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
@@ -1308,6 +1345,8 @@ class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
                 title = "Add a new hidden event"
             case EventModalType.EDIT:
                 title = "Edit the event"
+            case EventModalType.COPY:
+                title = "Copy the event"
             case _:
                 raise NotImplementedError
 
@@ -1383,7 +1422,7 @@ class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
         event = self._create_new_event()
 
         if old_event is not None:
-            event.reminder = old_event.reminder
+            event.reminder = deepcopy(old_event.reminder)
             event.is_hidden = old_event.is_hidden
         update_date_result = self._update_reminder_date(old_event, event)
 
@@ -1393,7 +1432,7 @@ class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
             old_event, event, update_date_result
         )
 
-        if old_event is not None:
+        if old_event is not None and self.modal_type is not EventModalType.COPY:
             self._controller.model.remove_event_from_json(old_event)
 
         embed = nextcord.utils.MISSING
@@ -1494,6 +1533,9 @@ class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
             case EventModalType.EDIT:
                 assert old_event is not None
                 content += f"edited the event '{old_event.full_info}' -> "
+            case EventModalType.COPY:
+                assert old_event is not None
+                content += f"copied the event '{old_event.full_info}' -> "
             case _:
                 raise NotImplementedError
         content += f"'{new_event.full_info}'"
@@ -1508,10 +1550,13 @@ class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
         result = f"Event '{new_event.full_info}' has been "
 
         match self.modal_type:
-            case EventModalType.ADD | EventModalType.ADD_HIDDEN:
+            case EventModalType.ADD | EventModalType.ADD_HIDDEN | EventModalType.COPY:
                 result += "added."
             case EventModalType.EDIT:
                 result += "edited."
+            case EventModalType.COPY:
+                assert old_event is not None
+                result += f"copied from the event '{old_event.full_info}'."
             case _:
                 raise NotImplementedError
 
