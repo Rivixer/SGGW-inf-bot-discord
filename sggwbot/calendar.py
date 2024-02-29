@@ -1384,6 +1384,7 @@ class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
 
         if old_event is not None:
             event.reminder = old_event.reminder
+            event.is_hidden = old_event.is_hidden
         update_date_result = self._update_reminder_date(old_event, event)
 
         self._send_info_to_console(old_event, event, member)
