@@ -401,7 +401,9 @@ class CalendarCog(commands.Cog):
 
         event = self._model.get_event_with_index(index)
         self._model.remove_event_from_json(event)
-        await self._ctrl.update_embed()
+
+        if not event.is_hidden:
+            await self._ctrl.update_embed()
 
         # We edit the original message here
         # instead of in the `with_info` decorator,
