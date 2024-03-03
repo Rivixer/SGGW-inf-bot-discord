@@ -805,7 +805,7 @@ class MemberData:  # pylint: disable=too-many-instance-attributes
             "First name": self.first_name,
             "Last name": self.last_name,
             "Student ID": self.index,
-            "Non-student reason": self.other_account_reason,
+            "Non-student reason": self.non_student_reason,
             "Another account reason": self.other_account_reason,
         }
 
