@@ -455,7 +455,7 @@ class CalendarCog(commands.Cog):
         await self._bot.wait_until_ready()
         while True:
             removed_events = self._model.remove_expired_events()
-            if removed_events:
+            if any(map(lambda i: not i.is_hidden, removed_events)):
                 await self._ctrl.update_embed()
             await wait_until_midnight()
 
