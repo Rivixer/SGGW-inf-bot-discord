@@ -68,7 +68,7 @@ class RoleAssignment(commands.Cog):
         """Initialize the cog."""
 
         self._bot = bot
-        self._load_controllers.start()  # pylint: disable=no-member
+        self._load_controllers_task.start()  # pylint: disable=no-member
 
     @staticmethod
     def _validate_identifier(func: _FUNC) -> _FUNC:
@@ -304,16 +304,37 @@ class RoleAssignment(commands.Cog):
         except nextcord.DiscordException:
             return
 
-    @tasks.loop(count=1)
-    async def _load_controllers(self):
-        await self._bot.wait_until_ready()
+    @_role_assignment.subcommand(
+        name="reload_controllers",
+        description="Reload the role_assignment controllers.",
+    )
+    @InteractionUtils.with_log()
+    @InteractionUtils.with_info(
+        before="Reloading role_assignment controllers...",
+        after="The role_assignment controllers have been reloaded.",
+    )
+    async def _reload_controllers(self, _: Interaction) -> None:
+        """Reloads the role_assignment controllers.
 
-        self._controllers = {}
+        Parameters
+        ----------
+        interaction: :class:`Interaction`
+            The interaction that triggered the command.
+        """
+        self._controllers = await self._load_controllers()
+
+    @tasks.loop(count=1)
+    async def _load_controllers_task(self):
+        await self._bot.wait_until_ready()
+        self._controllers = await self._load_controllers()
+
+    async def _load_controllers(self) -> dict[str, RoleAssignmentController]:
+        controllers = {}
         for path in RoleAssignmentModel.get_settings_directory().iterdir():
             identifier = path.stem
             model = RoleAssignmentModel(identifier)
             embed_model = RoleAssignmentEmbedModel(model, self._bot)
-            self._controllers[identifier] = RoleAssignmentController(model, embed_model)
+            controllers[identifier] = RoleAssignmentController(model, embed_model)
             Console.specific(
                 f"'{identifier}' controller has been loaded.",
                 "RoleAssignment",
@@ -321,6 +342,7 @@ class RoleAssignment(commands.Cog):
                 bold_type=True,
                 bold_text=True,
             )
+        return controllers
 
 
 # pylint: disable=no-member

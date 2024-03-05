@@ -401,7 +401,9 @@ class CalendarCog(commands.Cog):
 
         event = self._model.get_event_with_index(index)
         self._model.remove_event_from_json(event)
-        await self._ctrl.update_embed()
+
+        if not event.is_hidden:
+            await self._ctrl.update_embed()
 
         # We edit the original message here
         # instead of in the `with_info` decorator,
@@ -453,7 +455,7 @@ class CalendarCog(commands.Cog):
         await self._bot.wait_until_ready()
         while True:
             removed_events = self._model.remove_expired_events()
-            if removed_events:
+            if any(map(lambda i: not i.is_hidden, removed_events)):
                 await self._ctrl.update_embed()
             await wait_until_midnight()
 
