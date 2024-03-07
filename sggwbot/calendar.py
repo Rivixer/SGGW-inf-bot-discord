@@ -1424,8 +1424,9 @@ class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
         event = self._create_new_event()
 
         if old_event is not None:
-            event.reminder = deepcopy(old_event.reminder)
             event.is_hidden = old_event.is_hidden
+            if old_reminder := old_event.reminder:
+                event.reminder = self._copy_reminder(old_reminder)
         update_date_result = self._update_reminder_date(old_event, event)
 
         self._send_info_to_console(old_event, event, member)
@@ -1491,6 +1492,12 @@ class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
 
         if dt > datetime.datetime.now() + datetime.timedelta(days=365 * 5):
             raise ValueError("The event date and time must be in the next 5 years.")
+        
+    def _copy_reminder(self, reminder: Reminder) -> Reminder | None:
+        copied_reminder = deepcopy(reminder)
+        if self.modal_type is EventModalType.COPY:
+            copied_reminder.reset_sent_data()
+        return copied_reminder
 
     class _UpdateReminderDateResult(Enum):
         UNCHANGED = auto()
@@ -2042,6 +2049,11 @@ class Reminder:  # pylint: disable=too-many-instance-attributes
     def time_to_send(self) -> datetime.timedelta:
         """The time to send the reminder."""
         return self.datetime - datetime.datetime.now()
+    
+    def reset_sent_data(self) -> None:
+        """Resets the sent data."""
+        self._sent_data = {}
+        self._on_update_invoke()
 
     def get_channel(self, guild: Guild) -> TextChannel | None:
         """Gets the channel to send the reminder to.
