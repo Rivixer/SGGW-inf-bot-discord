@@ -38,7 +38,7 @@ from nextcord.ui import Modal, TextInput
 from sggwbot.console import Console, FontColour
 from sggwbot.errors import ExceptionData, RegistrationError
 from sggwbot.models import Model
-from sggwbot.utils import InteractionUtils, Matcher, SmartDict
+from sggwbot.utils import InteractionUtils, Matcher, MemberUtils, SmartDict
 
 if TYPE_CHECKING:
     from nextcord.guild import Guild
@@ -466,8 +466,8 @@ class RegistrationModel(Model):
         keys: list[Callable[[MemberData], str]] = [
             lambda i: i.index,
             lambda i: str(i.member.id),
-            lambda i: i.member.display_name,
             lambda i: i.member.name,
+            lambda i: MemberUtils.display_name(i.member),
             lambda i: i.first_name,
             lambda i: i.last_name,
             lambda i: i.first_name + i.last_name,
@@ -916,8 +916,8 @@ class InfoModal(Modal):
             )
         )
 
-        if member.display_name != member.name:
-            embed.insert_field_at(1, name="Nick", value=member.display_name)
+        if member.nick or member.global_name:
+            embed.insert_field_at(1, name="Nick", value=MemberUtils.display_name(member))
 
         bot_channel = self._bot.get_bot_channel()
         await bot_channel.send(embed=embed)
@@ -1067,8 +1067,10 @@ class CodeModal(Modal):
             )
         )
 
-        if member.display_name != member.name:
-            embed.insert_field_at(1, name="Nick", value=member.display_name)
+        if member.nick or member.global_name:
+            embed.insert_field_at(
+                1, name="Nick", value=MemberUtils.display_name(member)
+            )
 
         v: TextInput
         for k, v in data.items():
@@ -1183,7 +1185,7 @@ class MailController:
             text = f.read()
 
         text = (
-            text.replace("{{USER_DISPLAY_NAME}}", f"{self._member.display_name}")
+            text.replace("{{USER_DISPLAY_NAME}}", f"{MemberUtils.display_name(self._member)}")
             .replace("{{REGISTRATION_CODE}}", self._code_model.code)
             .replace("{{DISCORD_NAME}}", self._member.guild.name)
             .replace("{{CODE_EXPIRATION}}", self._code_model.expire)

@@ -59,6 +59,7 @@ class AvatarMock:
 class MemberMock:
     name: str
     nick: str
+    global_name: str
     id: int
     roles: list[RoleMock]
     discriminator: str | None = None
