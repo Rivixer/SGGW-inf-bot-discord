@@ -1277,18 +1277,35 @@ class CalendarEmbedModel(EmbedModel):
 
     model: CalendarModel
 
+    def _get_field_value(self, events: list[Event]) -> str:
+        truncated_text = "\n∟*... and more.*"
+        max_length = 1024 - len(truncated_text)
+        result = f"∟{events[0].full_info}"
+        for event in events[1:]:
+            event_summary = f"{event.full_info}"
+            if len(result) + len(event_summary) > max_length:
+                result += truncated_text
+                break
+            result += f"\n{event_summary}"
+        return result
+
     def generate_embed(self, **_) -> Embed:
         """Generates an embed with all events."""
         embed = super().generate_embed()
 
-        for day, events in self.model.get_grouped_events():
+        grouped_events = list(self.model.get_grouped_events())
+
+        for day, events in grouped_events[:25]:
             weekday = events[0].weekday
             date = day.strftime("%d.%m.%Y")
             embed.add_field(
                 name=f"{date} ({weekday}):",
-                value="∟" + "\n∟".join(map(lambda i: i.full_name, events)),
+                value=self._get_field_value(events),
                 inline=False,
             )
+
+        if len(grouped_events) > 25:
+            embed.set_footer(text="Showing only the first 25 days.")
 
         return embed
 
@@ -1594,7 +1611,7 @@ class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
 
         if dt > datetime.datetime.now() + datetime.timedelta(days=365 * 5):
             raise ValueError("The event date and time must be in the next 5 years.")
-        
+
     def _copy_reminder(self, reminder: Reminder) -> Reminder | None:
         copied_reminder = deepcopy(reminder)
         if self.modal_type is EventModalType.COPY:
@@ -2151,7 +2168,7 @@ class Reminder:  # pylint: disable=too-many-instance-attributes
     def time_to_send(self) -> datetime.timedelta:
         """The time to send the reminder."""
         return self.datetime - datetime.datetime.now()
-    
+
     def reset_sent_data(self) -> None:
         """Resets the sent data."""
         self._sent_data = {}
