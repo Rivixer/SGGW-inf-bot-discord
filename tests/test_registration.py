@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import datetime as dt
-import json
-from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +28,7 @@ def member1() -> MemberMock:
     return MemberMock(
         name="TestName1",
         nick="TestNick1",
+        global_name="TestGlobalName1",
         discriminator="1234",
         id=1234567890,
         roles=[
@@ -44,6 +43,7 @@ def member2() -> MemberMock:
     return MemberMock(
         name="TestName2",
         nick="TestNick2",
+        global_name="TestGlobalName2",
         discriminator="1235",
         id=1234567891,
         roles=[],

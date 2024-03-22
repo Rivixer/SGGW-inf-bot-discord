@@ -20,7 +20,7 @@ from nextcord.threads import Thread
 
 from sggwbot.console import Console, FontColour
 from sggwbot.errors import AttachmentError
-from sggwbot.utils import InteractionUtils
+from sggwbot.utils import InteractionUtils, MemberUtils
 
 if TYPE_CHECKING:
     from sggw_bot import SGGWBot
@@ -48,17 +48,20 @@ class MessagingCog(commands.Cog):
 
     @commands.Cog.listener(name="on_message")
     async def _on_message(self, message: nextcord.Message) -> None:
+        author = message.author
+
         if message.content != "":
             Console.specific(
                 message.content,
-                f"{message.author.display_name}/{message.author}/{message.channel}",
+                f"{MemberUtils.display_name(author)}/{author}/{message.channel}",
                 FontColour.CYAN,
             )
+
         if message.attachments:
             for attachment in message.attachments:
                 Console.specific(
                     attachment.url,
-                    f"{message.author.display_name}/{message.author}/{message.channel}",
+                    f"{MemberUtils.display_name(author)}/{author}/{message.channel}",
                     FontColour.CYAN,
                 )
 

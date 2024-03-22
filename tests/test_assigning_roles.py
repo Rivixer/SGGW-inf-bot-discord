@@ -124,6 +124,7 @@ async def test_change_group_role(ctrl: RoleAssignmentController) -> None:
     member = MemberMock(
         name="TestName",
         nick="TestNick",
+        global_name="TestGlobalName",
         discriminator="1234",
         id=1234567890,
         roles=[group_0_role],
