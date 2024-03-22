@@ -38,11 +38,14 @@ from nextcord.ui import Modal, TextInput
 from nextcord.utils import format_dt
 
 from sggwbot.console import Console, FontColour
-from sggwbot.errors import (ExceptionData, InvalidSettingsFile,
-                            MissingPermission, UpdateEmbedError)
+from sggwbot.errors import (
+    ExceptionData,
+    InvalidSettingsFile,
+    MissingPermission,
+    UpdateEmbedError,
+)
 from sggwbot.models import ControllerWithEmbed, EmbedModel, Model
-from sggwbot.utils import (InteractionUtils, Matcher, SmartDict,
-                           wait_until_midnight)
+from sggwbot.utils import InteractionUtils, Matcher, SmartDict, wait_until_midnight
 
 if TYPE_CHECKING:
     from nextcord.guild import Guild
@@ -52,6 +55,7 @@ if TYPE_CHECKING:
 
 class SummaryEventTypes(Flag):
     """Types of events to show in the summary."""
+
     VISIBLE = auto()
     HIDDEN = auto()
     ALL = VISIBLE | HIDDEN
@@ -1287,7 +1291,7 @@ class CalendarEmbedModel(EmbedModel):
         max_length = 1024 - len(truncated_text)
         result = f"∟{events[0].full_info}"
         for event in events[1:]:
-            event_summary = f"{event.full_info}"
+            event_summary = f"∟{event.full_info}"
             if len(result) + len(event_summary) > max_length:
                 result += truncated_text
                 break
@@ -1802,7 +1806,6 @@ class _ReminderSettings:
 
 @dataclass(slots=True, frozen=True)
 class _ReminderEmbedSettings:
-
     @dataclass(slots=True, frozen=True)
     class _Thumbnail:
         url: str
@@ -2525,7 +2528,6 @@ class ReminderModal(Modal):
         old_reminder: Reminder | None,
         new_reminder: Reminder,
     ) -> None:
-
         def get_reminder_info(reminder: Reminder) -> str:
             channel = reminder.get_channel(self.guild)
             channel_name = channel.name if channel else "Unknown channel"
