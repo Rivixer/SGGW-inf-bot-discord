@@ -1210,7 +1210,8 @@ class CalendarModel(Model):
     def _get_default_reminder_embed_data(self) -> dict[str, Any]:
         return {
             "_keywords": {
-                "{{DATETIME:X}}": "where X is one of (f, F, d, D, t, T, R) "
+                "{{DATETIME}}": "the event date and time",
+                "{{DATETIME:X}}": "the event date and time where X is one of (f, F, d, D, t, T, R) "
                 "(see https://discord-date.shyked.fr/)",
                 "{{DESCRIPTION}}": "the event description",
                 "{{CONTENT}}": "the reminder content "
@@ -1218,6 +1219,10 @@ class CalendarModel(Model):
                 "{{ROLES}}": "the mentioned roles",
                 "{{LOCATION}}": "the event location",
                 "{{MORE_INFO}}": "more information about the event",
+                "_": "Each keyword can be preceded or followed by any text "
+                "separated by question mark to display it only if the keyword is not empty. "
+                "For example: {{More info:\n?{{MORE_INFO}}}}. In this case, the text "
+                "'More info:\n' will be displayed only if the keyword 'MORE_INFO' is not empty.",
             },
             "text": "{{DATETIME}}: {{DESCRIPTION}}\n{{ROLES}}",
             "embed": {
@@ -1996,21 +2001,34 @@ class ReminderGenerator:
             text,
         )
 
-        if self.event.is_all_day:
-            text = text.replace(
-                "{{DATETIME}}", self.event.datetime.strftime("%d.%m.%Y")
-            )
-        else:
-            text = text.replace(
-                "{{DATETIME}}", self.event.datetime.strftime(Reminder.DT_FORMAT)
-            )
+        keywords = {
+            "DATETIME": (
+                self.event.datetime.strftime("%d.%m.%Y")
+                if self.event.is_all_day
+                else self.event.datetime.strftime(Reminder.DT_FORMAT)
+            ),
+            "DESCRIPTION": self.event.description,
+            "LOCATION": self.event.location,
+            "MORE_INFO": self.reminder.more_info,
+            "ROLES": " ".join(
+                map(
+                    lambda i: i.mention,
+                    filter(None, map(self.guild.get_role, self.reminder.role_ids)),
+                )
+            ),
+        }
 
-        text = text.replace("{{LOCATION}}", self.event.location)
-        text = text.replace("{{MORE_INFO}}", self.reminder.more_info)
-        text = text.replace("{{DESCRIPTION}}", self.event.description)
-
-        roles = filter(None, map(self.guild.get_role, self.reminder.role_ids))
-        text = text.replace("{{ROLES}}", " ".join(map(lambda i: i.mention, roles)))
+        keyword_re = re.compile(r"{{(.*?)\??([A-Z\_]+)\??(.*?)}}", re.DOTALL)
+        for match in keyword_re.finditer(text):
+            keyword_value = keywords.get(match.group(2), "INVALID_KEYWORD")
+            text = text.replace(
+                match.group(0),
+                (
+                    ""
+                    if not keyword_value
+                    else f"{match.group(1)}{keyword_value}{match.group(3)}"
+                ),
+            )
 
         return text
 
