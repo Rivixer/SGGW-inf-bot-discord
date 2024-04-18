@@ -19,7 +19,7 @@ from nextcord.message import Attachment, MessageReference
 from nextcord.threads import Thread
 
 from sggwbot.console import Console, FontColour
-from sggwbot.errors import AttachmentError
+from sggwbot.errors import AttachmentError, ExceptionData
 from sggwbot.utils import InteractionUtils, MemberUtils
 
 if TYPE_CHECKING:
@@ -196,6 +196,43 @@ class MessagingCog(commands.Cog):
             message_kwargs["file"] = await self._convert_attachment_to_file(attachment)
 
         await message.edit(**message_kwargs)
+
+    @_message.subcommand(
+        name="delete",
+        description="Delete a message sent by the bot.",
+    )
+    @InteractionUtils.with_info(
+        before="Deleting the message...",
+        after="The message has been deleted.",
+        catch_exceptions=[
+            ValueError,
+            DiscordException,
+            ExceptionData(
+                PermissionError,
+                with_traceback_in_log=False,
+                with_traceback_in_response=False,
+            ),
+        ],
+    )
+    @InteractionUtils.with_log(show_channel=True)
+    async def _delete(
+        self,
+        interaction: Interaction,
+        message_id: str = SlashOption(
+            description="The ID of the message to delete.",
+            required=True,
+        ),
+    ) -> None:
+        channel = interaction.channel
+        if not isinstance(channel, (TextChannel, Thread)):
+            raise ValueError("Cannot delete messages in non-text channels")
+
+        message = await channel.fetch_message(int(message_id))
+
+        if message.author != self._bot.user:
+            raise PermissionError("Cannot delete messages not sent by the bot")
+
+        await message.delete()
 
     @_message.subcommand(
         name="remove_element",
