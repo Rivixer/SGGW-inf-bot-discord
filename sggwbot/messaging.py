@@ -19,7 +19,7 @@ from nextcord.message import Attachment, MessageReference
 from nextcord.threads import Thread
 
 from sggwbot.console import Console, FontColour
-from sggwbot.errors import AttachmentError
+from sggwbot.errors import AttachmentError, ExceptionData
 from sggwbot.utils import InteractionUtils, MemberUtils
 
 if TYPE_CHECKING:
@@ -198,16 +198,53 @@ class MessagingCog(commands.Cog):
         await message.edit(**message_kwargs)
 
     @_message.subcommand(
-        name="remove",
-        description="Remove something from a message sent by the bot.",
+        name="delete",
+        description="Delete a message sent by the bot.",
     )
     @InteractionUtils.with_info(
-        before="Editing the message...",
+        before="Deleting the message...",
+        after="The message has been deleted.",
+        catch_exceptions=[
+            ValueError,
+            DiscordException,
+            ExceptionData(
+                PermissionError,
+                with_traceback_in_log=False,
+                with_traceback_in_response=False,
+            ),
+        ],
+    )
+    @InteractionUtils.with_log(show_channel=True)
+    async def _delete(
+        self,
+        interaction: Interaction,
+        message_id: str = SlashOption(
+            description="The ID of the message to delete.",
+            required=True,
+        ),
+    ) -> None:
+        channel = interaction.channel
+        if not isinstance(channel, (TextChannel, Thread)):
+            raise ValueError("Cannot delete messages in non-text channels")
+
+        message = await channel.fetch_message(int(message_id))
+
+        if message.author != self._bot.user:
+            raise PermissionError("Cannot delete messages not sent by the bot")
+
+        await message.delete()
+
+    @_message.subcommand(
+        name="remove_element",
+        description="Remove an element from a message sent by the bot.",
+    )
+    @InteractionUtils.with_info(
+        before="Removing element(s) from the message...",
         after="The message has been edited.",
         catch_exceptions=[ValueError, DiscordException, AttachmentError],
     )
     @InteractionUtils.with_log(show_channel=True)
-    async def _remove(
+    async def _remove_element(
         self,
         interaction: Interaction,
         message_id: str = SlashOption(
@@ -230,13 +267,15 @@ class MessagingCog(commands.Cog):
             default=False,
         ),
     ) -> None:
-        message_kwargs: dict[str, Any] = {}
+        if not any((text, embed, attachment)):
+            raise ValueError("At least one element must be selected as True.")
 
         channel = interaction.channel
         if not isinstance(channel, (TextChannel, Thread)):
             raise ValueError("Cannot edit messages in non-text channels")
 
         message = await channel.fetch_message(int(message_id))
+        message_kwargs: dict[str, Any] = {}
 
         if text:
             message_kwargs["content"] = None
