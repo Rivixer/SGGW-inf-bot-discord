@@ -1287,11 +1287,11 @@ class CalendarEmbedModel(EmbedModel):
     model: CalendarModel
 
     def _get_field_value(self, events: list[Event]) -> str:
-        truncated_text = "\n∟*... and more.*"
+        truncated_text = "\n*... and more.*"
         max_length = 1024 - len(truncated_text)
-        result = f"∟{events[0].full_name}"
+        result = f"- {events[0].full_name}"
         for event in events[1:]:
-            event_summary = f"∟{event.full_name}"
+            event_summary = f"- {event.full_name}"
             if len(result) + len(event_summary) > max_length:
                 result += truncated_text
                 break
