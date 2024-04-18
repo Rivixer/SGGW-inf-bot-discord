@@ -230,13 +230,15 @@ class MessagingCog(commands.Cog):
             default=False,
         ),
     ) -> None:
-        message_kwargs: dict[str, Any] = {}
+        if not any((text, embed, attachment)):
+            raise ValueError("At least one element must be selected as True.")
 
         channel = interaction.channel
         if not isinstance(channel, (TextChannel, Thread)):
             raise ValueError("Cannot edit messages in non-text channels")
 
         message = await channel.fetch_message(int(message_id))
+        message_kwargs: dict[str, Any] = {}
 
         if text:
             message_kwargs["content"] = None
