@@ -198,16 +198,16 @@ class MessagingCog(commands.Cog):
         await message.edit(**message_kwargs)
 
     @_message.subcommand(
-        name="remove",
-        description="Remove something from a message sent by the bot.",
+        name="remove_element",
+        description="Remove an element from a message sent by the bot.",
     )
     @InteractionUtils.with_info(
-        before="Editing the message...",
+        before="Removing element(s) from the message...",
         after="The message has been edited.",
         catch_exceptions=[ValueError, DiscordException, AttachmentError],
     )
     @InteractionUtils.with_log(show_channel=True)
-    async def _remove(
+    async def _remove_element(
         self,
         interaction: Interaction,
         message_id: str = SlashOption(
