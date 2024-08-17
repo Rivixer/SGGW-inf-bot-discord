@@ -20,7 +20,7 @@ import sys
 import uuid
 from copy import deepcopy
 from dataclasses import dataclass, field
-from enum import Enum, auto
+from enum import Enum, Flag, auto
 from typing import TYPE_CHECKING, Any, Callable, ClassVar, Coroutine, Generator
 
 import nextcord
@@ -38,16 +38,27 @@ from nextcord.ui import Modal, TextInput
 from nextcord.utils import format_dt
 
 from sggwbot.console import Console, FontColour
-from sggwbot.errors import (ExceptionData, InvalidSettingsFile,
-                            MissingPermission, UpdateEmbedError)
+from sggwbot.errors import (
+    ExceptionData,
+    InvalidSettingsFile,
+    MissingPermission,
+    UpdateEmbedError,
+)
 from sggwbot.models import ControllerWithEmbed, EmbedModel, Model
-from sggwbot.utils import (InteractionUtils, Matcher, SmartDict,
-                           wait_until_midnight)
+from sggwbot.utils import InteractionUtils, Matcher, SmartDict, wait_until_midnight
 
 if TYPE_CHECKING:
     from nextcord.guild import Guild
     from nextcord.message import PartialMessage
     from sggw_bot import SGGWBot
+
+
+class SummaryEventTypes(Flag):
+    """Types of events to show in the summary."""
+
+    VISIBLE = auto()
+    HIDDEN = auto()
+    ALL = VISIBLE | HIDDEN
 
 
 class CalendarCog(commands.Cog):
@@ -341,23 +352,50 @@ class CalendarCog(commands.Cog):
         await self._ctrl.update_embed()
 
     @_calendar.subcommand(
-        name="events_summary",
+        name="summary",
         description="Show summary of events.",
     )
     @InteractionUtils.with_info(
-        catch_exceptions=[DiscordException, InvalidSettingsFile]
+        catch_exceptions=[
+            DiscordException,
+            InvalidSettingsFile,
+            ExceptionData(
+                ValueError,
+                with_traceback_in_response=False,
+                with_traceback_in_log=False,
+            ),
+        ]
     )
     @InteractionUtils.with_log()
-    async def _events_summary(self, interaction: Interaction) -> None:
-        """Shows summary of all events.
+    async def _summary(
+        self,
+        interaction: Interaction,
+        page: int = SlashOption(
+            description="The page number of the events summary.",
+            default=1,
+            min_value=1,
+        ),
+        _type: str = SlashOption(
+            name="type",
+            description="The type of the events to show.",
+            choices={i.name.title(): i.name for i in SummaryEventTypes},
+            default=SummaryEventTypes.ALL.name,
+        ),
+    ) -> None:
+        """Shows summary of events.
 
         Parameters
         ----------
         interaction: :class:`Interaction`
             The interaction that triggered the command.
+        page: :class:`int`
+            The page number of the events summary.
+        _type: :class:`str`
+            The type of the events to show.
         """
-        events = self._model.summary_of_events or "There are no events."
-        await interaction.response.send_message(events, ephemeral=True)
+        event_type = SummaryEventTypes[_type]
+        embed = CalendarSummaryEmbed(self._model).generate(page, event_type)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @_calendar.subcommand(
         name="remove",
@@ -894,6 +932,89 @@ class Event:  # pylint: disable=too-many-instance-attributes
         }
 
 
+@dataclass(slots=True)
+class CalendarSummaryEmbed:
+    """Generates an embed with events summary."""
+
+    _model: CalendarModel
+
+    def _get_event_summary(self, event: Event, index: int) -> str:
+        return f"{index}.{' 🔔' if event.reminder else ''} {event.full_info}"
+
+    def _adding_event_exceeds_max_length(self, result: str, event_summary: str) -> bool:
+        max_description_length = 4096
+        return len(f"{result}\n{event_summary}") >= max_description_length
+
+    def _generate_description_parts(
+        self, _type: SummaryEventTypes
+    ) -> Generator[str, None, None]:
+        visible_events = self._model.visible_events
+        hidden_events = self._model.hidden_events
+        result = ""
+
+        if visible_events and SummaryEventTypes.VISIBLE in _type:
+            result += "**Visible events:**"
+            index = 1
+
+            for event in visible_events:
+                event_summary = f"\n{self._get_event_summary(event, index)}"
+                if self._adding_event_exceeds_max_length(result, event_summary):
+                    yield result
+                    result = "**Visible events:**"
+                result += event_summary
+                index += 1
+
+        hidden_info = (
+            "**Hidden events:**\nTo interact with them, precede the index with `_`"
+        )
+
+        if (
+            hidden_events
+            and SummaryEventTypes.HIDDEN in _type
+            and not self._adding_event_exceeds_max_length(
+                result,
+                f"\n{hidden_info}\n{self._get_event_summary(hidden_events[0], 1)}",
+            )
+        ):
+            if result:
+                result += "\n\n"
+
+            result += hidden_info
+            index = 1
+
+            for event in hidden_events:
+                event_summary = f"\n{self._get_event_summary(event, index)}"
+                if self._adding_event_exceeds_max_length(result, event_summary):
+                    yield result
+                    result = hidden_info
+                result += event_summary
+                index += 1
+
+        yield result
+
+    def generate(self, page: int, _type: SummaryEventTypes) -> Embed:
+        """Generates an embed with events summary.
+
+        Parameters
+        ----------
+        page: :class:`int`
+            The page number.
+        _type: :class:`SummaryEventTypes`
+            The type of the events to show.
+        """
+        description_parts = list(self._generate_description_parts(_type))
+
+        pages = len(description_parts)
+        if not 1 <= page <= pages:
+            raise ValueError(f"Page must be between 1 and {pages}")
+
+        return Embed(
+            title="Calendar events summary",
+            description=description_parts[page - 1] or "No events.",
+            color=nextcord.Colour.dark_green(),
+        ).set_footer(text=f"Page {page}/{pages}.")
+
+
 class CalendarModel(Model):
     """Represents the calendar model."""
 
@@ -923,6 +1044,18 @@ class CalendarModel(Model):
             result.append(event)
         result.sort(key=functools.cmp_to_key(Event.compare_method))
         return result
+
+    @property
+    def visible_events(self) -> list[Event]:
+        """A list of visible events formatted to the :class:`.Event` class.
+        Sorted by date."""
+        return [e for e in self.calendar_data if not e.is_hidden]
+
+    @property
+    def hidden_events(self) -> list[Event]:
+        """A list of hidden events formatted to the :class:`.Event` class.
+        Sorted by date."""
+        return [e for e in self.calendar_data if e.is_hidden]
 
     def get_event_with_index(self, index: str) -> Event:
         """Returns the event with the specified index.
@@ -1018,33 +1151,6 @@ class CalendarModel(Model):
 
         return removed_events
 
-    @property
-    def summary_of_events(self) -> str:
-        """A summary of all events in the calendar.
-        Includes the index, the event full_info and the reminder status.
-        In the format: `index. 🔔 full_info`.
-        If the event is hidden, it is prefixed with `_`.
-        """
-        result = []
-        visible_events = [e for e in self.calendar_data if not e.is_hidden]
-        hidden_events = [e for e in self.calendar_data if e.is_hidden]
-
-        if visible_events:
-            result.append("Visible events:")
-            for i, event in enumerate(visible_events):
-                result.append(
-                    f"{i+1}.{' 🔔' if event.reminder else ''} {event.full_info}"
-                )
-
-        if hidden_events:
-            result.append("\nHidden events:")
-            for i, event in enumerate(hidden_events):
-                result.append(
-                    f"_{i+1}.{' 🔔' if event.reminder else ''} {event.full_info}"
-                )
-
-        return "\n".join(result)
-
     def add_event_to_json(self, event: Event) -> None:
         """Adds the event to the `settings.json` file.
 
@@ -1108,7 +1214,8 @@ class CalendarModel(Model):
     def _get_default_reminder_embed_data(self) -> dict[str, Any]:
         return {
             "_keywords": {
-                "{{DATETIME:X}}": "where X is one of (f, F, d, D, t, T, R) "
+                "{{DATETIME}}": "the event date and time",
+                "{{DATETIME:X}}": "the event date and time where X is one of (f, F, d, D, t, T, R) "
                 "(see https://discord-date.shyked.fr/)",
                 "{{DESCRIPTION}}": "the event description",
                 "{{CONTENT}}": "the reminder content "
@@ -1116,6 +1223,10 @@ class CalendarModel(Model):
                 "{{ROLES}}": "the mentioned roles",
                 "{{LOCATION}}": "the event location",
                 "{{MORE_INFO}}": "more information about the event",
+                "_": "Each keyword can be preceded or followed by any text "
+                "separated by question mark to display it only if the keyword is not empty. "
+                "For example: {{More info:\n?{{MORE_INFO}}}}. In this case, the text "
+                "'More info:\n' will be displayed only if the keyword 'MORE_INFO' is not empty.",
             },
             "text": "{{DATETIME}}: {{DESCRIPTION}}\n{{ROLES}}",
             "embed": {
@@ -1175,18 +1286,35 @@ class CalendarEmbedModel(EmbedModel):
 
     model: CalendarModel
 
+    def _get_field_value(self, events: list[Event]) -> str:
+        truncated_text = "\n*... and more.*"
+        max_length = 1024 - len(truncated_text)
+        result = f"- {events[0].full_name}"
+        for event in events[1:]:
+            event_summary = f"- {event.full_name}"
+            if len(result) + len(event_summary) > max_length:
+                result += truncated_text
+                break
+            result += f"\n{event_summary}"
+        return result
+
     def generate_embed(self, **_) -> Embed:
         """Generates an embed with all events."""
         embed = super().generate_embed()
 
-        for day, events in self.model.get_grouped_events():
+        grouped_events = list(self.model.get_grouped_events())
+
+        for day, events in grouped_events[:25]:
             weekday = events[0].weekday
             date = day.strftime("%d.%m.%Y")
             embed.add_field(
                 name=f"{date} ({weekday}):",
-                value="∟" + "\n∟".join(map(lambda i: i.full_name, events)),
+                value=self._get_field_value(events),
                 inline=False,
             )
+
+        if len(grouped_events) > 25:
+            embed.set_footer(text="Showing only the first 25 days.")
 
         return embed
 
@@ -1424,8 +1552,9 @@ class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
         event = self._create_new_event()
 
         if old_event is not None:
-            event.reminder = deepcopy(old_event.reminder)
             event.is_hidden = old_event.is_hidden
+            if old_reminder := old_event.reminder:
+                event.reminder = self._copy_reminder(old_reminder)
         update_date_result = self._update_reminder_date(old_event, event)
 
         self._send_info_to_console(old_event, event, member)
@@ -1491,6 +1620,12 @@ class EventModal(Modal):  # pylint: disable=too-many-instance-attributes
 
         if dt > datetime.datetime.now() + datetime.timedelta(days=365 * 5):
             raise ValueError("The event date and time must be in the next 5 years.")
+
+    def _copy_reminder(self, reminder: Reminder) -> Reminder | None:
+        copied_reminder = deepcopy(reminder)
+        if self.modal_type is EventModalType.COPY:
+            copied_reminder.reset_sent_data()
+        return copied_reminder
 
     class _UpdateReminderDateResult(Enum):
         UNCHANGED = auto()
@@ -1671,7 +1806,6 @@ class _ReminderSettings:
 
 @dataclass(slots=True, frozen=True)
 class _ReminderEmbedSettings:
-
     @dataclass(slots=True, frozen=True)
     class _Thumbnail:
         url: str
@@ -1870,21 +2004,34 @@ class ReminderGenerator:
             text,
         )
 
-        if self.event.is_all_day:
-            text = text.replace(
-                "{{DATETIME}}", self.event.datetime.strftime("%d.%m.%Y")
-            )
-        else:
-            text = text.replace(
-                "{{DATETIME}}", self.event.datetime.strftime(Reminder.DT_FORMAT)
-            )
+        keywords = {
+            "DATETIME": (
+                self.event.datetime.strftime("%d.%m.%Y")
+                if self.event.is_all_day
+                else self.event.datetime.strftime(Reminder.DT_FORMAT)
+            ),
+            "DESCRIPTION": self.event.description,
+            "LOCATION": self.event.location,
+            "MORE_INFO": self.reminder.more_info,
+            "ROLES": " ".join(
+                map(
+                    lambda i: i.mention,
+                    filter(None, map(self.guild.get_role, self.reminder.role_ids)),
+                )
+            ),
+        }
 
-        text = text.replace("{{LOCATION}}", self.event.location)
-        text = text.replace("{{MORE_INFO}}", self.reminder.more_info)
-        text = text.replace("{{DESCRIPTION}}", self.event.description)
-
-        roles = filter(None, map(self.guild.get_role, self.reminder.role_ids))
-        text = text.replace("{{ROLES}}", " ".join(map(lambda i: i.mention, roles)))
+        keyword_re = re.compile(r"{{(.*?)\??([A-Z\_]+)\??(.*?)}}", re.DOTALL)
+        for match in keyword_re.finditer(text):
+            keyword_value = keywords.get(match.group(2), "INVALID_KEYWORD")
+            text = text.replace(
+                match.group(0),
+                (
+                    ""
+                    if not keyword_value
+                    else f"{match.group(1)}{keyword_value}{match.group(3)}"
+                ),
+            )
 
         return text
 
@@ -2042,6 +2189,11 @@ class Reminder:  # pylint: disable=too-many-instance-attributes
     def time_to_send(self) -> datetime.timedelta:
         """The time to send the reminder."""
         return self.datetime - datetime.datetime.now()
+
+    def reset_sent_data(self) -> None:
+        """Resets the sent data."""
+        self._sent_data = {}
+        self._on_update_invoke()
 
     def get_channel(self, guild: Guild) -> TextChannel | None:
         """Gets the channel to send the reminder to.
@@ -2376,7 +2528,6 @@ class ReminderModal(Modal):
         old_reminder: Reminder | None,
         new_reminder: Reminder,
     ) -> None:
-
         def get_reminder_info(reminder: Reminder) -> str:
             channel = reminder.get_channel(self.guild)
             channel_name = channel.name if channel else "Unknown channel"

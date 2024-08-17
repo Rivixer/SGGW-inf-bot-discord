@@ -417,17 +417,6 @@ def test_event_weekday() -> None:
     assert event.weekday == "poniedziałek"
 
 
-def test_summary_of_events(model: CalendarModel, date_now: datetime.date) -> None:
-    event1 = Event("test1", date_now, None, "prefix", "")
-    model.add_event_to_json(event1)
-    event2 = Event("test2", date_now, None, "", "location")
-    model.add_event_to_json(event2)
-    assert (
-        model.summary_of_events
-        == f"Visible events:\n1. {event1.full_info}\n2. {event2.full_info}"
-    )
-
-
 def test_get_event_from_empty_calendar(model: CalendarModel) -> None:
     with pytest.raises(IndexError):
         model.get_event_at_index(0)

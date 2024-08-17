@@ -25,18 +25,19 @@ from typing import (
     ParamSpec,
     TypeAlias,
     TypeVar,
+    overload,
 )
 
 import nextcord
 from nextcord.channel import TextChannel
 from nextcord.interactions import Interaction
+from nextcord.member import Member
 from nextcord.threads import Thread
 
 from sggwbot.console import Console, FontColour
 from sggwbot.errors import ExceptionData
 
 if TYPE_CHECKING:
-    from nextcord.member import Member
     from nextcord.user import User
 
     _P = ParamSpec("_P")
@@ -89,7 +90,7 @@ class InteractionUtils(ABC):
                 command_name = InteractionUtils._command_name(interaction)
                 user: Member = interaction.user  # type: ignore
 
-                user_info = f"{user.display_name} ({user})"
+                user_info = f"{MemberUtils.display_name(user)} ({user})"
 
                 kwargs_info = " ".join(
                     f"{k}:{v}" for k, v in kwargs.items() if v is not None
@@ -292,6 +293,76 @@ class PathUtils(ABC):  # pylint: disable=too-few-public-methods
         if ret.endswith("_model"):
             return "_".join(ret.split("_")[:-1])
         return ret
+
+
+class MemberUtils(ABC):  # pylint: disable=too-few-public-methods
+    """A class containing utility methods for members."""
+
+    @overload
+    @staticmethod
+    def display_name(user: Member) -> str:
+        """Returns the display name of the member.
+
+        Due to the bug in the `nextcord.Member.display_name` property,
+        this method should be used instead of it.
+
+        The bug is that `nextcord.Member.display_name` property does not return
+        the global name of the member if the member has no nickname on the server.
+
+        Result of this method is specified using the following hierarchy:
+        1. Guild specific nickname
+        2. Global name
+        3. Username
+
+        Parameters
+        ----------
+        user: :class:`nextcord.Member`
+            The member to retrieve the display name for.
+
+        Returns
+        -------
+        :class:`str`
+            The display name of the member.
+
+        .. versionadded:: 0.8.2
+            The version of the Nextcord package at the time of adding this method is 2.6.0.
+        """
+
+    @overload
+    @staticmethod
+    def display_name(user: User) -> str:
+        """Returns the display name of the user.
+
+        Due to the bug in the `nextcord.User.display_name` property,
+        this method should be used instead of it.
+
+        The bug is that `nextcord.User.display_name` property does not return
+        the global name of the user.
+
+        Result of this method is specified using the following hierarchy:
+        1. Global name
+        2. Username
+
+        Parameters
+        ----------
+        user: :class:`nextcord.User`
+            The user to retrieve the display name for.
+
+        Returns
+        -------
+        :class:`str`
+            The display name of the user.
+
+        .. versionadded:: 0.8.2
+            The version of the Nextcord package at the time of adding this method is 2.6.0.
+        """
+
+    @staticmethod
+    def display_name(user: User | Member) -> str:
+        """Returns the display name of the user or member."""
+        if isinstance(user, Member):
+            return user.nick or user.global_name or user.name
+        return user.global_name or user.name
 
 
 class ProjectUtils(ABC):  # pylint: disable=too-few-public-methods

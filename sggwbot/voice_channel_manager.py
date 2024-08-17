@@ -25,7 +25,7 @@ from nextcord.interactions import Interaction
 from sggwbot.console import Console, FontColour
 from sggwbot.errors import ExceptionData, NoVoiceConnection
 from sggwbot.models import Controller, Model
-from sggwbot.utils import InteractionUtils
+from sggwbot.utils import InteractionUtils, MemberUtils
 
 if TYPE_CHECKING:
     from nextcord.channel import CategoryChannel
@@ -74,7 +74,7 @@ class VoiceChananelManagerCog(commands.Cog):
 
         if before.channel:
             Console.specific(
-                f"{member.display_name} left.",
+                f"{MemberUtils.display_name(member)} left.",
                 before.channel.name,
                 FontColour.GREEN,
                 bold_type=True,
@@ -102,7 +102,7 @@ class VoiceChananelManagerCog(commands.Cog):
 
         if after.channel:
             Console.specific(
-                f"{member.display_name} joined.",
+                f"{MemberUtils.display_name(member)} joined.",
                 after.channel.name,
                 FontColour.GREEN,
                 bold_type=True,
