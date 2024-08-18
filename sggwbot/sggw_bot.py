@@ -61,6 +61,7 @@ class SGGWBot(commands.Bot):
         "sggwbot.registration",
         "sggwbot.messaging",
         "sggwbot.voice_channel_manager",
+        "sggwbot.plugins",
     ]
 
     def __init__(self) -> None:
