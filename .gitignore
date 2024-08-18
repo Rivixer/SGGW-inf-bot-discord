@@ -143,3 +143,13 @@ prototype_json.json
 registered_users.json
 student_indexes.txt
 registration_codes.json
+
+# Plugins
+plugins/*
+!plugins/example
+plugins/packages/*
+!plugins/packages/
+!plugins/packages/install.sh
+plugins/requirements/*
+!plugins/requirements/
+!plugins/requirements/install.sh

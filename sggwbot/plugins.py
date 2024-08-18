@@ -3,24 +3,47 @@
 
 The plugins are used to extend the functionality of the bot.
 
-The plugins are loaded from the `plugins` directory.
+Plugins are loaded from the `plugins` directory.
+They can be enabled, disabled, and reloaded using the `/plugins` command.
 
-The plugins can be enabled, disabled, and reloaded.
+Directories: `example`, `packages`, `requirements` and directories starting with `_` are ignored.
+The `example` directory is an example plugin and cannot be loaded by the bot.
+The `packages` and `requirements` directories
+are used to install system packages and Python dependencies.
 
-To create a new plugin, copy the plugin structure (`plugins/example` directory).
-Rename the directory and the files (the main file must have the same name as the directory).
-Rerun the bot to load the new plugin.
+Enabled plugins are loaded when the bot starts.
 
-The plugin structure:
-- `plugins`
+CREATE A NEW PLUGIN
+--------------------
+1. Copy the plugin structure from the `plugins/example` directory.
+2. Rename the directory and the files (the main file must have the same name as the directory).
+3. Rerun the bot to load the new plugin.
+
+PLUGIN STRUCTURE
+-----------------
+- `plugins/`
     - `example`
-        - `example.py`
-        - `plugin.json`
-    - 'your_plugin'
-        - 'your_plugin.py'
-        - 'plugin.json'
+        - `example.py` (Main file of example plugin)
+        - `plugin.json` (Settings file for example plugin)
+    - `packages/`
+        - `install.sh` (Script to install system packages - do not edit)
+        - `your_plugin.txt` (List of system packages for your plugin, if needed)
+    - `requirements/`
+        - `install.sh` (Script to install Python dependencies - do not edit)
+        - `your_plugin.txt` (List of Python requirements for your plugin, if needed)
+    - `your_plugin/`
+        - `your_plugin.py` (Main file of your plugin)
+        - `plugin.json` (Settings file for your plugin)
 
-The `plugin.json` file contains the settings for the plugin.
+NOTES
+-----
+- The plugin main file must have the same name as the directory.
+- The plugin settings file must be named `plugin.json`.
+    It must contain the `enabled` key with a boolean value.
+    If the file doesn't exist, it will be created with the `enabled` key set to `False`.
+- In your plugin directory, you can create more directories and files as needed.
+- It is recommended to name required system packages
+    and Python dependencies files as `your_plugin.txt`.
 """
 
 from __future__ import annotations
@@ -47,6 +70,8 @@ from sggwbot.utils import InteractionUtils
 
 if TYPE_CHECKING:
     from sggw_bot import SGGWBot
+
+IGNORED_DIRECTORIES = {"example", "packages", "requirements"}
 
 
 def _console_message(
@@ -272,8 +297,9 @@ class PluginsCog(commands.Cog):
         plugins: list[Plugin] = []
 
         for plugin_dir in Path(self._DIR).iterdir():
-            if plugin_dir.name == "example":
+            if plugin_dir.name in IGNORED_DIRECTORIES:
                 continue
+
             if plugin_dir.is_dir() and not plugin_dir.name.startswith("_"):
                 plugin = Plugin(plugin_dir.name, plugin_dir)
                 plugins.append(plugin)
