@@ -34,6 +34,26 @@ class MissingPermission(SGGWBotError):
     """Missing permission."""
 
 
+class PluginError(SGGWBotError):
+    """Plugin error."""
+
+
+class PluginNotFoundError(PluginError):
+    """Plugin not found."""
+
+    __slots__ = ("plugin_name",)
+
+    plugin_name: str
+
+    def __init__(self, plugin_name: str) -> None:
+        self.plugin_name = plugin_name
+        super().__init__(f"Plugin '{plugin_name}' not found.")
+
+
+class PluginOperationError(PluginError):
+    """Plugin operation error."""
+
+
 @dataclass
 class ExceptionData:
     """Exception data with attributes to be passed to the error handler.
