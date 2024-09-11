@@ -112,6 +112,7 @@ class Console:
         with open(file_path, "a", encoding="utf-8") as f:
             for log in cls._logs:
                 f.writelines(log + "\n")
+        cls._logs.clear()
 
     @classmethod
     def _print_to_console(
